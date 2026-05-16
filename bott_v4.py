@@ -836,11 +836,14 @@ def replay_h1(coin, df_h1):
     state['phase']   = phase
     state['fvg_touch_ts'] = fvg_touch_ts
 
-    print(f"\n📊 {coin}: BOS {stype} | Swing: {swing_val}")
-    print(f"🔄 {coin}: Replay → Phase:{phase} FVG:{fvg_idx+1}/{len(gaps)} | TP:{tp_val}")
+    choch_r    = sl_h1[-1]['val'] if stype == "Long" and sl_h1 else (sh_h1[-1]['val'] if sl_h1 else None)
+    choch_r_s  = f"{choch_r:.6g}" if choch_r else "—"
+    print(f"\n📊 {coin}: BOS {stype} | Swing: {swing_val:.6g} | Phase: {phase}")
+    print(f"   ⛔ CHOCH batal     : {choch_r_s}  ({'tutup < ' if stype=='Long' else 'tutup > '}{choch_r_s})")
+    print(f"   🚀 Lanjut H1 batal : {swing_val:.6g}  (harga tembus sebelum M5 selesai → batal)")
     for gi, g in enumerate(gaps):
         marker = "◀" if gi == fvg_idx else " "
-        print(f"   {marker} FVG {gi+1}: {g['bottom']} – {g['top']}")
+        print(f"   {marker} FVG {gi+1}: bottom:{g['bottom']:.6g}  top:{g['top']:.6g}")
     return state
 
 
@@ -1324,19 +1327,27 @@ def run_bot():
                 if existing and existing.get('swing_val') == swing_val and existing.get('type') == stype:
                     continue  # BOS yang sama, skip
 
+                choch_level = sl_h1[-1]['val'] if stype == "Long" and sl_h1 else (
+                              sh_h1[-1]['val'] if stype == "Short" and sh_h1 else None)
+
                 pending[coin] = {
                     'type': stype, 'df_h1': df_h1_snap,
                     'fvg_list': gaps, 'fvg_idx': 0,
                     'tp': tp_val, 'bos_ts': bos_ts, 'bos_idx': bos_idx,
                     'swing_val': swing_val,
+                    'choch_level': choch_level,
                     'phase': "WAIT_FVG_TOUCH", 'fvg_touch_ts': bos_ts,
                     'm5_freeze_high': None, 'm5_freeze_low': None, 'm5_freeze_ts': None,
                     'idm_list': [], 'idm_touched_val': None,
                 }
-                print(f"\n📊 {coin} | Swing: {swing_val} | C: {curr_h1['close']}")
-                print(f"🎯 {coin}: BOS {stype} | {len(gaps)} FVG | TP:{tp_val}")
+                choch_str  = f"{choch_level:.6g}" if choch_level else "—"
+                swing_str  = f"{swing_val:.6g}"
+                print(f"\n📊 {coin} | Swing: {swing_val:.6g} | C: {curr_h1['close']:.6g}")
+                print(f"🎯 {coin}: BOS {stype} | {len(gaps)} FVG")
+                print(f"   ⛔ CHOCH batal     : {choch_str}  ({'tutup < ' if stype=='Long' else 'tutup > '}{choch_str})")
+                print(f"   🚀 Lanjut H1 batal : {swing_str}  (harga tembus sebelum M5 selesai → batal)")
                 for i, g in enumerate(gaps):
-                    print(f"   FVG {i+1}: bottom:{g['bottom']} top:{g['top']}")
+                    print(f"   FVG {i+1}: bottom:{g['bottom']:.6g}  top:{g['top']:.6g}")
 
             except Exception as e:
                 print(f"⚠️ Error {coin}: {e}"); continue
