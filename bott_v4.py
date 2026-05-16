@@ -915,9 +915,10 @@ def run_bot():
                 # ── PROSES SETUP PENDING ──────────────────────────────
                 if coin in pending:
                     setup    = pending[coin]
-                    stype    = setup['type']
-                    fvg_idx  = setup['fvg_idx']
-                    bos_idx  = setup.get('bos_idx', 0)
+                    stype     = setup['type']
+                    fvg_idx   = setup['fvg_idx']
+                    bos_idx   = setup.get('bos_idx', 0)
+                    swing_val = setup.get('swing_val')
 
                     # Refresh FVG list + TP setiap loop pakai H1 terbaru
                     if bos_idx >= len(df_h1_live):
