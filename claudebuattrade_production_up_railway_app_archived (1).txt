@@ -1,0 +1,513 @@
+# 
+🤖 Backtest SMC Bot — All Coins (Full Year 2025)
+
+22/22 coin selesai
+| 
+    Modal:
+$10
+| 
+    Period:
+2025-01-01 → 2025-12-31
+| 
+    Status:
+✅ Selesai
+
+✅ Backtest selesai! Buka
+/readme
+untuk export README.md
+
+## 
+Hasil Per Coin
+Coin
+Trade
+WR%
+PnL USD
+MaxDD%
+PF
+Final Bal
+ATR P25
+
+XVGUSDT
+14
+71.4%
++$2.66
+2.2%
+6.13
+$12.66
+0.0030
+
+BELUSDT
+12
+75.0%
++$2.39
+1.2%
+6.92
+$12.39
+0.0024
+
+TAOUSDT
+23
+69.6%
++$4.37
+2.4%
+5.68
+$14.37
+0.0032
+
+1000BONKUSDT
+24
+62.5%
++$3.69
+3.3%
+3.97
+$13.69
+0.0035
+
+BERAUSDT
+24
+62.5%
++$3.67
+4.5%
+4.09
+$13.67
+0.0032
+
+DOGEUSDT
+13
+46.2%
++$0.86
+3.5%
+2.02
+$10.86
+0.0024
+
+USUALUSDT
+24
+50.0%
++$2.14
+3.5%
+2.40
+$12.14
+0.0034
+
+FARTCOINUSDT
+36
+75.0%
++$9.53
+2.2%
+7.88
+$19.53
+0.0056
+
+1000PEPEUSDT
+20
+55.0%
++$2.21
+4.5%
+2.96
+$12.21
+0.0031
+
+1000FLOKIUSDT
+24
+45.8%
++$1.62
+3.5%
+1.92
+$11.62
+0.0030
+
+WIFUSDT
+28
+53.6%
++$3.09
+3.5%
+2.76
+$13.09
+0.0038
+
+PENGUUSDT
+30
+76.7%
++$7.56
+3.5%
+6.96
+$17.56
+0.0040
+
+PNUTUSDT
+22
+63.6%
++$3.48
+3.4%
+4.22
+$13.48
+0.0036
+
+SUIUSDT
+15
+73.3%
++$2.88
+2.4%
+6.19
+$12.88
+0.0029
+
+AVAXUSDT
+12
+58.3%
++$1.45
+3.4%
+3.34
+$11.45
+0.0025
+
+ONDOUSDT
+18
+88.9%
++$5.30
+2.3%
+16.29
+$15.30
+0.0027
+
+JUPUSDT
+19
+63.2%
++$2.89
+3.5%
+3.87
+$12.89
+0.0030
+
+EIGENUSDT
+28
+71.4%
++$5.84
+2.3%
+6.02
+$15.84
+0.0037
+
+LINKUSDT
+19
+73.7%
++$3.91
+3.5%
+6.88
+$13.91
+0.0025
+
+WLDUSDT
+20
+75.0%
++$4.28
+2.3%
+7.60
+$14.28
+0.0032
+
+VIRTUALUSDT
+26
+69.2%
++$5.12
+2.3%
+5.19
+$15.12
+0.0040
+
+ORCAUSDT
+15
+66.7%
++$2.48
+2.1%
+4.65
+$12.48
+0.0024
+
+TOTAL (22 coin)
+466
+65.9%
++$81.42
+—
+—
+$91.42
+—
+
+## 
+Per Kuartal (Agregat Semua Coin)
+Kuartal
+Trade
+WR%
+PnL
+Bal Awal → Akhir
+
+Q1
+147
+69.4%
++$25.82
+$10.00 → $35.82
+
+Q2
+127
+65.4%
++$21.35
+$35.82 → $57.17
+
+Q3
+92
+63.0%
++$15.57
+$57.17 → $72.74
+
+Q4
+100
+64.0%
++$18.67
+$72.74 → $91.42
+
+💡
+ATR P25
+= threshold filter yang digunakan.
+Final Bal
+= $10 + PnL coin tersebut (compound per-coin).  
+    Baris
+TOTAL
+= $10 + sum semua PnL.
+Per Kuartal = PnL semua coin yang trade di kuartal tersebut (balance kumulatif).
+
+## 
+Log Progress
+
+[19:23:06] ==============================================================
+[19:23:06] BACKTEST SEMUA COIN BOT LIVE | Full Year 2025 | Modal $10 | Risk 1%
+[19:23:06] 22 Coins: XVGUSDT, BELUSDT, TAOUSDT, 1000BONKUSDT, BERAUSDT, DOGEUSDT, USUALUSDT, FARTCOINUSDT, 1000PEPEUSDT, 1000FLOKIUSDT, WIFUSDT, PENGUUSDT, PNUTUSDT, SUIUSDT, AVAXUSDT, ONDOUSDT, JUPUSDT, EIGENUSDT, LINKUSDT, WLDUSDT, VIRTUALUSDT, ORCAUSDT
+[19:23:06] ==============================================================
+[19:23:06] 
+──────────────────────────────────────────────────────
+[19:23:06] ▶ XVGUSDT
+[19:23:06]   Fetching M5 data dari Bybit API...
+[19:23:37]    105,120 candle dari 106 API call
+[19:23:37]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:23:37]   ATR P25: 0.303% → threshold = 0.0030
+[19:23:41]   [DIAG] BOS:121→EMA:93→FVG:84→touch:59→IDM:48→BOS2:39→MSS:18
+[19:23:41]   Running full backtest (1 tahun)...
+[19:23:53]   ✅ Trade:14 | W:10 L:4 | WR:71.4% | PnL:$2.66 | ROI:26.6% | MaxDD:2.2% | PF:6.13
+[19:23:53] 
+──────────────────────────────────────────────────────
+[19:23:53] ▶ BELUSDT
+[19:23:53]   Fetching M5 data dari Bybit API...
+[19:24:47]    105,120 candle dari 106 API call
+[19:24:47]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:24:47]   ATR P25: 0.238% → threshold = 0.0024
+[19:24:50]   [DIAG] BOS:125→EMA:95→FVG:83→touch:58→IDM:42→BOS2:32→MSS:13
+[19:24:50]   Running full backtest (1 tahun)...
+[19:25:03]   ✅ Trade:12 | W:9 L:3 | WR:75.0% | PnL:$2.39 | ROI:23.9% | MaxDD:1.2% | PF:6.92
+[19:25:03] 
+──────────────────────────────────────────────────────
+[19:25:03] ▶ TAOUSDT
+[19:25:03]   Fetching M5 data dari Bybit API...
+[19:25:32]    105,120 candle dari 106 API call
+[19:25:32]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:25:32]   ATR P25: 0.316% → threshold = 0.0032
+[19:25:35]   [DIAG] BOS:126→EMA:105→FVG:94→touch:75→IDM:63→BOS2:50→MSS:23
+[19:25:35]   Running full backtest (1 tahun)...
+[19:25:47]   ✅ Trade:23 | W:16 L:7 | WR:69.6% | PnL:$4.37 | ROI:43.7% | MaxDD:2.4% | PF:5.68
+[19:25:47] 
+──────────────────────────────────────────────────────
+[19:25:47] ▶ 1000BONKUSDT
+[19:25:47]   Fetching M5 data dari Bybit API...
+[19:26:13]    105,120 candle dari 106 API call
+[19:26:13]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:26:13]   ATR P25: 0.348% → threshold = 0.0035
+[19:26:16]   [DIAG] BOS:130→EMA:98→FVG:87→touch:62→IDM:55→BOS2:44→MSS:12
+[19:26:16]   Running full backtest (1 tahun)...
+[19:26:28]   ✅ Trade:24 | W:15 L:9 | WR:62.5% | PnL:$3.69 | ROI:36.9% | MaxDD:3.3% | PF:3.97
+[19:26:28] 
+──────────────────────────────────────────────────────
+[19:26:28] ▶ BERAUSDT
+[19:26:28]   Fetching M5 data dari Bybit API...
+[19:26:58]    94,589 candle dari 95 API call
+[19:26:58]   Data: 94,589 candle | 2025-02-06 → 2025-12-31 | Missing: 10,531 (~10.0%)
+[19:26:58]   ATR P25: 0.322% → threshold = 0.0032
+[19:27:02]   [DIAG] BOS:121→EMA:96→FVG:89→touch:64→IDM:46→BOS2:41→MSS:17
+[19:27:02]   Running full backtest (1 tahun)...
+[19:27:12]   ✅ Trade:24 | W:15 L:9 | WR:62.5% | PnL:$3.67 | ROI:36.7% | MaxDD:4.5% | PF:4.09
+[19:27:12] 
+──────────────────────────────────────────────────────
+[19:27:12] ▶ DOGEUSDT
+[19:27:12]   Fetching M5 data dari Bybit API...
+[19:27:40]    105,120 candle dari 106 API call
+[19:27:40]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:27:40]   ATR P25: 0.242% → threshold = 0.0024
+[19:27:43]   [DIAG] BOS:111→EMA:84→FVG:76→touch:54→IDM:38→BOS2:27→MSS:8
+[19:27:43]   Running full backtest (1 tahun)...
+[19:27:55]   ✅ Trade:13 | W:6 L:7 | WR:46.2% | PnL:$0.86 | ROI:8.6% | MaxDD:3.5% | PF:2.02
+[19:27:55] 
+──────────────────────────────────────────────────────
+[19:27:55] ▶ USUALUSDT
+[19:27:55]   Fetching M5 data dari Bybit API...
+[19:28:30]    105,120 candle dari 106 API call
+[19:28:30]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:28:30]   ATR P25: 0.340% → threshold = 0.0034
+[19:28:33]   [DIAG] BOS:124→EMA:100→FVG:91→touch:69→IDM:49→BOS2:41→MSS:24
+[19:28:33]   Running full backtest (1 tahun)...
+[19:28:45]   ✅ Trade:24 | W:12 L:12 | WR:50.0% | PnL:$2.14 | ROI:21.4% | MaxDD:3.5% | PF:2.40
+[19:28:45] 
+──────────────────────────────────────────────────────
+[19:28:45] ▶ FARTCOINUSDT
+[19:28:45]   Fetching M5 data dari Bybit API...
+[19:29:16]    105,120 candle dari 106 API call
+[19:29:16]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:29:16]   ATR P25: 0.556% → threshold = 0.0056
+[19:29:19]   [DIAG] BOS:139→EMA:105→FVG:97→touch:72→IDM:64→BOS2:54→MSS:27
+[19:29:19]   Running full backtest (1 tahun)...
+[19:29:30]   ✅ Trade:36 | W:27 L:9 | WR:75.0% | PnL:$9.53 | ROI:95.3% | MaxDD:2.2% | PF:7.88
+[19:29:30] 
+──────────────────────────────────────────────────────
+[19:29:30] ▶ 1000PEPEUSDT
+[19:29:30]   Fetching M5 data dari Bybit API...
+[19:30:00]    105,120 candle dari 106 API call
+[19:30:00]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:30:00]   ATR P25: 0.306% → threshold = 0.0031
+[19:30:03]   [DIAG] BOS:130→EMA:94→FVG:86→touch:64→IDM:58→BOS2:45→MSS:20
+[19:30:03]   Running full backtest (1 tahun)...
+[19:30:16]   ✅ Trade:20 | W:11 L:9 | WR:55.0% | PnL:$2.21 | ROI:22.1% | MaxDD:4.5% | PF:2.96
+[19:30:16] 
+──────────────────────────────────────────────────────
+[19:30:16] ▶ 1000FLOKIUSDT
+[19:30:16]   Fetching M5 data dari Bybit API...
+[19:30:51]    105,120 candle dari 106 API call
+[19:30:51]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:30:51]   ATR P25: 0.296% → threshold = 0.0030
+[19:30:55]   [DIAG] BOS:133→EMA:99→FVG:86→touch:67→IDM:54→BOS2:42→MSS:21
+[19:30:55]   Running full backtest (1 tahun)...
+[19:31:08]   ✅ Trade:24 | W:11 L:13 | WR:45.8% | PnL:$1.62 | ROI:16.2% | MaxDD:3.5% | PF:1.92
+[19:31:08] 
+──────────────────────────────────────────────────────
+[19:31:08] ▶ WIFUSDT
+[19:31:08]   Fetching M5 data dari Bybit API...
+[19:31:42]    105,120 candle dari 106 API call
+[19:31:42]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:31:42]   ATR P25: 0.378% → threshold = 0.0038
+[19:31:45]   [DIAG] BOS:117→EMA:91→FVG:83→touch:57→IDM:46→BOS2:31→MSS:17
+[19:31:45]   Running full backtest (1 tahun)...
+[19:31:57]   ✅ Trade:28 | W:15 L:13 | WR:53.6% | PnL:$3.09 | ROI:30.9% | MaxDD:3.5% | PF:2.76
+[19:31:57] 
+──────────────────────────────────────────────────────
+[19:31:57] ▶ PENGUUSDT
+[19:31:57]   Fetching M5 data dari Bybit API...
+[19:32:39]    105,120 candle dari 106 API call
+[19:32:39]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:32:39]   ATR P25: 0.397% → threshold = 0.0040
+[19:32:42]   [DIAG] BOS:133→EMA:98→FVG:90→touch:64→IDM:48→BOS2:42→MSS:25
+[19:32:42]   Running full backtest (1 tahun)...
+[19:32:54]   ✅ Trade:30 | W:23 L:7 | WR:76.7% | PnL:$7.56 | ROI:75.6% | MaxDD:3.5% | PF:6.96
+[19:32:54] 
+──────────────────────────────────────────────────────
+[19:32:54] ▶ PNUTUSDT
+[19:32:54]   Fetching M5 data dari Bybit API...
+[19:33:41]    105,120 candle dari 106 API call
+[19:33:41]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:33:41]   ATR P25: 0.357% → threshold = 0.0036
+[19:33:45]   [DIAG] BOS:124→EMA:97→FVG:88→touch:61→IDM:53→BOS2:38→MSS:20
+[19:33:45]   Running full backtest (1 tahun)...
+[19:33:56]   ✅ Trade:22 | W:14 L:8 | WR:63.6% | PnL:$3.48 | ROI:34.8% | MaxDD:3.4% | PF:4.22
+[19:33:56] 
+──────────────────────────────────────────────────────
+[19:33:56] ▶ SUIUSDT
+[19:33:56]   Fetching M5 data dari Bybit API...
+[19:34:38]    105,120 candle dari 106 API call
+[19:34:38]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:34:38]   ATR P25: 0.286% → threshold = 0.0029
+[19:34:41]   [DIAG] BOS:133→EMA:102→FVG:92→touch:69→IDM:55→BOS2:46→MSS:19
+[19:34:41]   Running full backtest (1 tahun)...
+[19:34:54]   ✅ Trade:15 | W:11 L:4 | WR:73.3% | PnL:$2.88 | ROI:28.8% | MaxDD:2.4% | PF:6.19
+[19:34:54] 
+──────────────────────────────────────────────────────
+[19:34:54] ▶ AVAXUSDT
+[19:34:54]   Fetching M5 data dari Bybit API...
+[19:35:21]    105,120 candle dari 106 API call
+[19:35:21]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:35:21]   ATR P25: 0.251% → threshold = 0.0025
+[19:35:24]   [DIAG] BOS:132→EMA:105→FVG:96→touch:68→IDM:55→BOS2:46→MSS:13
+[19:35:24]   Running full backtest (1 tahun)...
+[19:35:36]   ✅ Trade:12 | W:7 L:5 | WR:58.3% | PnL:$1.45 | ROI:14.5% | MaxDD:3.4% | PF:3.34
+[19:35:36] 
+──────────────────────────────────────────────────────
+[19:35:36] ▶ ONDOUSDT
+[19:35:36]   Fetching M5 data dari Bybit API...
+[19:36:05]    105,120 candle dari 106 API call
+[19:36:05]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:36:05]   ATR P25: 0.270% → threshold = 0.0027
+[19:36:08]   [DIAG] BOS:143→EMA:118→FVG:104→touch:83→IDM:73→BOS2:55→MSS:23
+[19:36:08]   Running full backtest (1 tahun)...
+[19:36:21]   ✅ Trade:18 | W:16 L:2 | WR:88.9% | PnL:$5.30 | ROI:53.0% | MaxDD:2.3% | PF:16.29
+[19:36:21] 
+──────────────────────────────────────────────────────
+[19:36:21] ▶ JUPUSDT
+[19:36:21]   Fetching M5 data dari Bybit API...
+[19:37:05]    105,120 candle dari 106 API call
+[19:37:05]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:37:06]   ATR P25: 0.295% → threshold = 0.0030
+[19:37:09]   [DIAG] BOS:130→EMA:97→FVG:88→touch:60→IDM:51→BOS2:40→MSS:18
+[19:37:09]   Running full backtest (1 tahun)...
+[19:37:20]   ✅ Trade:19 | W:12 L:7 | WR:63.2% | PnL:$2.89 | ROI:28.9% | MaxDD:3.5% | PF:3.87
+[19:37:20] 
+──────────────────────────────────────────────────────
+[19:37:20] ▶ EIGENUSDT
+[19:37:20]   Fetching M5 data dari Bybit API...
+[19:37:56]    105,120 candle dari 106 API call
+[19:37:56]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:37:56]   ATR P25: 0.369% → threshold = 0.0037
+[19:37:59]   [DIAG] BOS:139→EMA:106→FVG:96→touch:76→IDM:64→BOS2:51→MSS:25
+[19:37:59]   Running full backtest (1 tahun)...
+[19:38:11]   ✅ Trade:28 | W:20 L:8 | WR:71.4% | PnL:$5.84 | ROI:58.4% | MaxDD:2.3% | PF:6.02
+[19:38:11] 
+──────────────────────────────────────────────────────
+[19:38:11] ▶ LINKUSDT
+[19:38:11]   Fetching M5 data dari Bybit API...
+[19:38:38]    105,120 candle dari 106 API call
+[19:38:38]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:38:38]   ATR P25: 0.253% → threshold = 0.0025
+[19:38:42]   [DIAG] BOS:144→EMA:112→FVG:101→touch:77→IDM:71→BOS2:60→MSS:29
+[19:38:42]   Running full backtest (1 tahun)...
+[19:38:54]   ✅ Trade:19 | W:14 L:5 | WR:73.7% | PnL:$3.91 | ROI:39.1% | MaxDD:3.5% | PF:6.88
+[19:38:54] 
+──────────────────────────────────────────────────────
+[19:38:54] ▶ WLDUSDT
+[19:38:54]   Fetching M5 data dari Bybit API...
+[19:39:36]    105,120 candle dari 106 API call
+[19:39:36]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:39:36]   ATR P25: 0.322% → threshold = 0.0032
+[19:39:39]   [DIAG] BOS:123→EMA:94→FVG:84→touch:60→IDM:46→BOS2:39→MSS:10
+[19:39:39]   Running full backtest (1 tahun)...
+[19:39:51]   ✅ Trade:20 | W:15 L:5 | WR:75.0% | PnL:$4.28 | ROI:42.8% | MaxDD:2.3% | PF:7.60
+[19:39:51] 
+──────────────────────────────────────────────────────
+[19:39:51] ▶ VIRTUALUSDT
+[19:39:51]   Fetching M5 data dari Bybit API...
+[19:40:30]    105,120 candle dari 106 API call
+[19:40:30]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:40:30]   ATR P25: 0.402% → threshold = 0.0040
+[19:40:33]   [DIAG] BOS:135→EMA:99→FVG:90→touch:63→IDM:48→BOS2:43→MSS:19
+[19:40:33]   Running full backtest (1 tahun)...
+[19:40:44]   ✅ Trade:26 | W:18 L:8 | WR:69.2% | PnL:$5.12 | ROI:51.2% | MaxDD:2.3% | PF:5.19
+[19:40:44] 
+──────────────────────────────────────────────────────
+[19:40:44] ▶ ORCAUSDT
+[19:40:44]   Fetching M5 data dari Bybit API...
+[19:41:13]    105,120 candle dari 106 API call
+[19:41:14]   Data: 105,120 candle | 2025-01-01 → 2025-12-31 | Missing: 0 (~0.0%)
+[19:41:14]   ATR P25: 0.237% → threshold = 0.0024
+[19:41:17]   [DIAG] BOS:123→EMA:97→FVG:88→touch:62→IDM:49→BOS2:40→MSS:15
+[19:41:17]   Running full backtest (1 tahun)...
+[19:41:28]   ✅ Trade:15 | W:10 L:5 | WR:66.7% | PnL:$2.48 | ROI:24.8% | MaxDD:2.1% | PF:4.65
+[19:41:28] 
+==============================================================
+[19:41:28] TOTAL: 466 trade | WR:65.9% | PnL:$81.42 | $10.00 → $91.42
+[19:41:28]   Q1: 147 trade | WR:69% | PnL:$25.82 | $10.00→$35.82
+[19:41:28]   Q2: 127 trade | WR:65% | PnL:$21.35 | $35.82→$57.17
+[19:41:28]   Q3: 92 trade | WR:63% | PnL:$15.57 | $57.17→$72.74
+[19:41:28]   Q4: 100 trade | WR:64% | PnL:$18.67 | $72.74→$91.42
+[19:41:28] ✅ SELESAI — Buka /readme untuk markdown README.md
