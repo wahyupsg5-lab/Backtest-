@@ -109,7 +109,7 @@ ATR_THRESHOLD = {
     'TONUSDT'       : 0.0035,
     'ADAUSDT'       : 0.0035,
     'STORJUSDT'     : 0.0035,
-    'LINKUSDT'      : 0.0035,
+    'LINKUSDT'      : 0.0025,   # P25=0.253%
     'NEARUSDT'      : 0.0035,
 }
 

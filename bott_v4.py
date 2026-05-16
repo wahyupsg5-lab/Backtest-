@@ -80,6 +80,7 @@ SYMBOLS = [
     'FARTCOINUSDT', '1000PEPEUSDT', '1000FLOKIUSDT',
     'WIFUSDT', 'PENGUUSDT', 'PNUTUSDT',
     'SUIUSDT', 'AVAXUSDT', 'ONDOUSDT', 'JUPUSDT', 'EIGENUSDT',
+    'LINKUSDT',
 ]
 
 
@@ -1187,6 +1188,7 @@ def run_bot():
                             'ONDOUSDT'      : 0.0027,   # P25=0.270%
                             'JUPUSDT'       : 0.0030,   # P25=0.295%
                             'EIGENUSDT'     : 0.0037,   # P25=0.369%
+                            'LINKUSDT'      : 0.0025,   # P25=0.253%
                         }
                         atr_thresh = ATR_THRESHOLD.get(coin, 0.0035)
                         df_atr_m5  = get_data(coin, "5", limit=20)
