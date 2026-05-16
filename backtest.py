@@ -113,9 +113,9 @@ ATR_THRESHOLD = {
     'NEARUSDT'      : 0.0035,
     # Coin batch 4 — diisi otomatis oleh backtest_web.py saat runtime
     'INJUSDT'       : 0.0035,
-    'WLDUSDT'       : 0.0035,
-    'VIRTUALUSDT'   : 0.0035,
-    'ORCAUSDT'      : 0.0035,
+    'WLDUSDT'       : 0.0032,   # P25=0.322%
+    'VIRTUALUSDT'   : 0.0040,   # P25=0.402%
+    'ORCAUSDT'      : 0.0024,   # P25=0.237%
     'ICPUSDT'       : 0.0035,
     'ARBUSDT'       : 0.0035,
 }
