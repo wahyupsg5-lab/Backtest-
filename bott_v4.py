@@ -79,9 +79,9 @@ SYMBOLS = [
     'USUALUSDT',
     'FARTCOINUSDT', '1000PEPEUSDT',
     'WIFUSDT', 'PENGUUSDT', 'PNUTUSDT',
-    'SUIUSDT', 'AVAXUSDT', 'ONDOUSDT', 'JUPUSDT', 'EIGENUSDT',
+    'SUIUSDT', 'AVAXUSDT', 'ONDOUSDT', 'EIGENUSDT',
     'LINKUSDT',
-    'WLDUSDT', 'VIRTUALUSDT', 'ORCAUSDT',
+    'VIRTUALUSDT', 'ORCAUSDT',
 ]
 
 
@@ -1208,10 +1208,8 @@ def run_bot():
                             'SUIUSDT'       : 0.0029,   # P25=0.286%
                             'AVAXUSDT'      : 0.0025,   # P25=0.251%
                             'ONDOUSDT'      : 0.0027,   # P25=0.270%
-                            'JUPUSDT'       : 0.0030,   # P25=0.295%
                             'EIGENUSDT'     : 0.0037,   # P25=0.369%
                             'LINKUSDT'      : 0.0025,   # P25=0.253%
-                            'WLDUSDT'       : 0.0032,   # P25=0.322%
                             'VIRTUALUSDT'   : 0.0040,   # P25=0.402%
                             'ORCAUSDT'      : 0.0024,   # P25=0.237%
                         }

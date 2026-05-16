@@ -103,7 +103,6 @@ ATR_THRESHOLD = {
     'SUIUSDT'       : 0.0029,   # P25=0.286%
     'AVAXUSDT'      : 0.0025,   # P25=0.251%
     'ONDOUSDT'      : 0.0027,   # P25=0.270%
-    'JUPUSDT'       : 0.0030,   # P25=0.295%
     'EIGENUSDT'     : 0.0037,   # P25=0.369%
     # Coin batch 3 — diisi otomatis oleh backtest_web.py saat runtime
     'TONUSDT'       : 0.0035,
@@ -113,7 +112,6 @@ ATR_THRESHOLD = {
     'NEARUSDT'      : 0.0035,
     # Coin batch 4 — diisi otomatis oleh backtest_web.py saat runtime
     'INJUSDT'       : 0.0035,
-    'WLDUSDT'       : 0.0032,   # P25=0.322%
     'VIRTUALUSDT'   : 0.0040,   # P25=0.402%
     'ORCAUSDT'      : 0.0024,   # P25=0.237%
     'ICPUSDT'       : 0.0035,
