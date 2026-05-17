@@ -751,31 +751,35 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
             # if ref_price > 0 and (atr_val / ref_price) < atr_thresh:
             #     i += 12; continue
 
-        # ── Entry: Contrarian — fade the MSS ──
-        # Entry = MSS close. SL = 4/3 × choch_dist (4R). TP = 2× SL (R:R 2:1, BE WR 33%).
+        # ── Entry: Follow MSS — Long MSS → Long, Short MSS → Short ──
+        # Entry = MSS close (market). SL = bb['sl']. TP = 3R.
         entry_price = float(mss_candle['close'])
-        trade_stype = "Short" if stype == "Long" else "Long"
+        trade_stype = stype
 
-        if choch_level is None: i += 12; continue
+        df_bb = df_m5_full.iloc[max(0, mss_m5_idx - 20): mss_m5_idx + 1].reset_index(drop=True)
+        bb    = find_breaker_block(df_bb, int(mss_candle['ts_ms']), stype)
 
-        choch_dist = abs(entry_price - choch_level)
-        if choch_dist == 0: i += 12; continue
-
-        sl_dist = choch_dist * 4 / 3   # 4R (4× old 1R unit = choch_dist/3)
-
-        # Skip jika sl_dist terlalu kecil (< min_dist → posisi terlalu besar)
-        min_dist = entry_price * MIN_DIST_PCT
-        if sl_dist < min_dist:
-            c_dir_fail += 1; i += 12; continue
-
-        if trade_stype == "Short":
-            sl_price = entry_price + sl_dist       # SL 4R di atas entry
-            final_tp = entry_price - sl_dist * 2  # TP 2× SL ke bawah (R:R 2:1)
+        if bb is not None:
+            sl_price = bb['sl']
         else:
-            sl_price = entry_price - sl_dist       # SL 4R di bawah entry
-            final_tp = entry_price + sl_dist * 2  # TP 2× SL ke atas (R:R 2:1)
+            pct      = entry_price * 0.01
+            sl_price = (entry_price - pct) if stype == "Long" else (entry_price + pct)
 
-        # ── Simulasi (dari mss_m5_idx, arah dibalik) ──
+        dist = abs(entry_price - sl_price)
+        if dist == 0: i += 12; continue
+
+        # Enforce minimum SL distance
+        min_dist = entry_price * MIN_DIST_PCT
+        if dist < min_dist:
+            dist     = min_dist
+            sl_price = (entry_price - dist) if stype == "Long" else (entry_price + dist)
+
+        if stype == "Long":
+            final_tp = entry_price + dist * 3
+        else:
+            final_tp = entry_price - dist * 3
+
+        # ── Simulasi ──
         pnl, outcome, exit_p, exit_ts = simulate_trade(
             df_m5_full, mss_m5_idx, entry_price, sl_price, final_tp, trade_stype, balance,
             _skip_reasons=c_simskip_reasons
@@ -792,39 +796,35 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
         else:
             in_trade_until_idx = mss_m5_idx + 300
 
-        # Setelah SL kena, apakah harga balik ke TP sebelum CHOCH?
-        # Tiga hasil: sl_then_tp (TP duluan), sl_choch (CHOCH duluan), sl_drift (keduanya tidak)
-        # SL→TP DIAG — pakai arah trade_stype (bukan stype setup)
+        # SL→TP DIAG + MAE
         sl_then_tp = False
         sl_choch   = False
-        mae_r = 0.0   # Maximum Adverse Excursion dalam satuan R (1R = sl_dist)
+        mae_r      = 0.0
         if outcome == 'sl':
-            scan_end = min(in_trade_until_idx + 1 + 500, len(df_m5_full))
+            scan_end   = min(in_trade_until_idx + 1 + 500, len(df_m5_full))
             tp_hit_idx = None
             for k in range(in_trade_until_idx + 1, scan_end):
-                ck      = df_m5_full.iloc[k]
-                low_k   = float(ck['low'])
-                high_k  = float(ck['high'])
-                if trade_stype == "Short":
-                    if low_k  <= final_tp: sl_then_tp = True; tp_hit_idx = k; break
-                else:
+                ck     = df_m5_full.iloc[k]
+                low_k  = float(ck['low'])
+                high_k = float(ck['high'])
+                if trade_stype == "Long":
                     if high_k >= final_tp: sl_then_tp = True; tp_hit_idx = k; break
-
-            if sl_then_tp and tp_hit_idx is not None and sl_dist > 0:
-                # MAE: harga terjauh dari entry ke arah adverse (entry→SL→lebih jauh)
-                # dalam rentang entry sampai TP hit
-                window = df_m5_full.iloc[mss_m5_idx : tp_hit_idx + 1]
-                if trade_stype == "Short":
-                    mae_price = float(window['high'].max())
-                    mae_r = (mae_price - entry_price) / sl_dist
                 else:
+                    if low_k  <= final_tp: sl_then_tp = True; tp_hit_idx = k; break
+
+            if sl_then_tp and tp_hit_idx is not None and dist > 0:
+                window = df_m5_full.iloc[mss_m5_idx : tp_hit_idx + 1]
+                if trade_stype == "Long":
                     mae_price = float(window['low'].min())
-                    mae_r = (entry_price - mae_price) / sl_dist
+                    mae_r = (entry_price - mae_price) / dist
+                else:
+                    mae_price = float(window['high'].max())
+                    mae_r = (mae_price - entry_price) / dist
 
         trades.append({
             'symbol'         : symbol,
             'type'           : trade_stype,
-            'setup_type'     : stype,   # arah setup asli (MSS yang di-fade)
+            'setup_type'     : stype,
             'entry_ts'       : df_m5_full.iloc[mss_m5_idx]['ts'],
             'exit_ts'        : exit_ts,
             'entry'          : round(entry_price, 8),
@@ -839,7 +839,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
             'mss_body_ratio' : _mss_body_ratio,
             'vol_ratio'      : _vol_ratio,
             'atr_ratio'      : _atr_ratio,
-            'sl_dist_pct'    : round(sl_dist / entry_price, 6) if entry_price > 0 else 0.0,
+            'sl_dist_pct'    : round(dist / entry_price, 6) if entry_price > 0 else 0.0,
             'sl_then_tp'     : sl_then_tp,
             'sl_choch'       : sl_choch,
             'mae_r'          : round(mae_r, 2),   # R adverse sebelum balik ke TP (0 jika tidak sl_then_tp)
