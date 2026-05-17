@@ -729,16 +729,19 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
             if ref_price > 0 and (atr_val / ref_price) < atr_thresh:
                 i += 12; continue
 
-        # ── Entry: Breaker Block atau FVG fallback ──
+        # ── Entry: Market order di MSS close (sinkron dengan live bot) ──
+        # Live bot pakai MARKET order saat MSS close → fill di harga pasar saat itu.
+        # SL tetap dari Breaker Block (structural), TP = 3R dari fill actual.
         df_bb = df_m5_full.iloc[max(0, mss_m5_idx - 20): mss_m5_idx + 1].reset_index(drop=True)
         bb = find_breaker_block(df_bb, int(mss_candle['ts_ms']), stype)
 
+        # Entry = MSS close (market fill), bukan BB price
+        entry_price = float(mss_candle['close'])
+
         if bb is not None:
-            entry_price = bb['entry']
-            sl_price    = bb['sl']
+            sl_price = bb['sl']
         else:
-            entry_price = used_fvg['top'] if stype == "Long" else used_fvg['bottom']
-            sl_price    = float(mss_candle['low']) if stype == "Long" else float(mss_candle['high'])
+            sl_price = float(mss_candle['low']) if stype == "Long" else float(mss_candle['high'])
 
         if entry_price is None or sl_price is None:
             i += 12; continue
@@ -747,7 +750,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
         if dist == 0:
             i += 12; continue
 
-        tp_dist = dist * 3  # TP = 3R
+        tp_dist = dist * 3  # TP = 3R dari fill actual
         final_tp = entry_price + tp_dist if stype == "Long" else entry_price - tp_dist
 
         # ── Simulasi ──
