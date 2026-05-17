@@ -22,8 +22,14 @@ PORT             = int(os.environ.get('PORT', 8080))
 INITIAL_BALANCE  = 10.0   # modal awal $10
 
 COINS = [
-    # Coin yang sebelumnya dibuang — ditest ulang dengan recursive IDM + FVG-CHOCH fix
-    'TAOUSDT', 'FARTCOINUSDT', 'SUIUSDT', '1000FLOKIUSDT', 'TONUSDT', 'INJUSDT', 'ICPUSDT',
+    # Core
+    'XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT', 'USUALUSDT',
+    '1000PEPEUSDT', 'WIFUSDT', 'PENGUUSDT', 'PNUTUSDT',
+    'AVAXUSDT', 'ONDOUSDT', 'EIGENUSDT', 'LINKUSDT', 'VIRTUALUSDT', 'ORCAUSDT',
+    # Rehabilitasi (strategi recursive IDM)
+    'DOGEUSDT', 'ARBUSDT', 'NEARUSDT', 'STORJUSDT', 'ENAUSDT', 'ADAUSDT',
+    # Baru
+    'SHIB1000USDT',
 ]
 
 # 2025-01-01 00:00:00 UTC  →  2025-12-31 23:59:59 UTC  (dalam ms)
@@ -298,6 +304,65 @@ def _calc_quarters_compound(replayed: list) -> dict:
     return stats
 
 
+# ── Win/Loss analysis ────────────────────────────────────────────────────
+def _win_loss_analysis(trades: list) -> dict:
+    """Compute per-group stats for win and loss trades."""
+    wins   = [t for t in trades if t['outcome'] == 'tp']
+    losses = [t for t in trades if t['outcome'] == 'sl']
+
+    def grp(g):
+        if not g: return None
+        n = len(g)
+        long_n = sum(1 for t in g if t['type'] == 'Long')
+        bb_n   = sum(1 for t in g if t.get('entry_type') == 'breaker')
+        return {
+            'n'        : n,
+            'long_pct' : long_n / n * 100,
+            'bb_pct'   : bb_n   / n * 100,
+            'avg_depth': sum(t.get('idm_depth', 0)      for t in g) / n,
+            'avg_body' : sum(t.get('mss_body_ratio', 0) for t in g) / n * 100,
+            'avg_vol'  : sum(t.get('vol_ratio', 0)      for t in g) / n,
+            'avg_atr'  : sum(t.get('atr_ratio', 0)      for t in g) / n,
+        }
+
+    return {'win': grp(wins), 'loss': grp(losses)}
+
+
+def _insight(ws, ls) -> str:
+    """One-line human-readable insight from win vs loss stats."""
+    if ws is None or ls is None:
+        return '—'
+    clues = []
+    # Direction
+    dd = ws['long_pct'] - ls['long_pct']
+    if   dd >  20: clues.append(f'Long lebih baik ({ws["long_pct"]:.0f}% vs {ls["long_pct"]:.0f}%)')
+    elif dd < -20: clues.append(f'Short lebih baik ({100-ws["long_pct"]:.0f}% vs {100-ls["long_pct"]:.0f}%)')
+    # Entry type
+    bd = ws['bb_pct'] - ls['bb_pct']
+    if   bd >  15: clues.append(f'Breaker Block entry lebih reliable')
+    elif bd < -15: clues.append(f'FVG entry lebih reliable')
+    # IDM depth
+    id_ = ws['avg_depth'] - ls['avg_depth']
+    if   id_ >  0.3: clues.append(f'Setup lebih dalam prediktif (IDM {ws["avg_depth"]:.1f}×)')
+    elif id_ < -0.3: clues.append(f'Setup cepat lebih baik (IDM {ws["avg_depth"]:.1f}×)')
+    # MSS body
+    mbd = ws['avg_body'] - ls['avg_body']
+    if mbd > 5: clues.append(f'MSS body kuat ({ws["avg_body"]:.0f}% vs {ls["avg_body"]:.0f}%)')
+    # Volume
+    vd = ws['avg_vol'] - ls['avg_vol']
+    if vd > 0.3: clues.append(f'Volume MSS lebih tinggi saat win ({ws["avg_vol"]:.1f}× vs {ls["avg_vol"]:.1f}×)')
+    return ' · '.join(clues) if clues else 'Tidak ada pola dominan'
+
+
+def _fmt_grp(s) -> str:
+    """Compact one-line summary for a win/loss group."""
+    if s is None: return '—'
+    dir_lbl = f'Long {s["long_pct"]:.0f}%' if s['long_pct'] >= 50 else f'Short {100-s["long_pct"]:.0f}%'
+    ent_lbl = f'BB {s["bb_pct"]:.0f}%' if s["bb_pct"] >= 50 else f'FVG {100-s["bb_pct"]:.0f}%'
+    return (f'{dir_lbl} · {ent_lbl} · IDM {s["avg_depth"]:.1f}× '
+            f'· Body {s["avg_body"]:.0f}% · Vol {s["avg_vol"]:.1f}×')
+
+
 # ── Main runner (background thread) ──────────────────────────────────────
 def _run():
     global _phase, _results, _quarter_stats, _all_trades, _compound_final_bal
@@ -394,6 +459,7 @@ def _run():
             'longs': len([t for t in trades if t['type'] == 'Long']),
             'shorts': len([t for t in trades if t['type'] == 'Short']),
             'p25_atr': p25_atr,
+            'win_loss': _win_loss_analysis(trades),
         })
         all_trades_list.extend(trades)
 
@@ -479,6 +545,17 @@ def _gen_readme() -> str:
         f"**{total_sign}${cpnl_tot:.2f}** | **{roi_total_sign}{roi_all:.0f}%** | — | **{pf_all:.2f}** | — |\n"
     )
 
+    # Win/loss analysis table
+    wl_rows_md = ""
+    for r in sorted(ok, key=lambda x: x.get('compound_pnl', 0), reverse=True):
+        wl  = r.get('win_loss', {})
+        ws  = wl.get('win')
+        ls  = wl.get('loss')
+        ins = _insight(ws, ls)
+        wl_rows_md += (
+            f"| {r['symbol']} | {_fmt_grp(ws)} | {_fmt_grp(ls)} | {ins} |\n"
+        )
+
     # Quarter table
     q_rows = ""
     if qs:
@@ -528,6 +605,13 @@ BOS H1 → EMA50 Filter → FVG Touch → IDM M5 → BOS/Sweep M5 → MSS → En
 
 **${INITIAL_BALANCE:.2f} → ${final_bal:.2f} dalam setahun (+{roi_all:.0f}% ROI)**
 
+### Analisis Win/Loss per Coin
+
+> Format: Direction · Entry Type · IDM depth · MSS body · Volume ratio
+
+| Coin | ✅ Win (pola rata-rata) | ❌ Loss (pola rata-rata) | 💡 Insight |
+|------|------------------------|-------------------------|------------|
+{wl_rows_md}
 ### Per Kuartal
 
 | Kuartal | Trade | WR% | PnL | ROI Kuartal | Bal Awal → Akhir |
@@ -556,22 +640,8 @@ SYMBOLS = {COINS}
 
 ## Catatan
 
-Ini adalah backtest **khusus coin yang sebelumnya dibuang**, diuji ulang dengan strategi **Recursive IDM**
-(IDM#1 → mandatory BOS → IDM#2 dalam BOS → WAIT_MSS → entry atau BOS lagi).
-
-| Coin | Alasan Dibuang (strategi lama) |
-|------|-------------------------------|
-| DOGEUSDT | WR 46%, PF 2.02 — dianggap lemah |
-| 1000FLOKIUSDT | WR 45.8%, PF 1.92 — borderline |
-| ENAUSDT | Bearish 3/4 kuartal, choppy |
-| INJUSDT | WR 40.7%, PF 1.62 |
-| ICPUSDT | Hanya 9 trade/tahun |
-| ARBUSDT | WR 40%, PF 1.57 |
-| TONUSDT | PF 0.82 (losing) |
-| ADAUSDT | 9 trade/tahun |
-| STORJUSDT | 5 trade/tahun |
-| NEARUSDT | WR 44% |
-| SHIB1000USDT | Ditest di run ini dengan symbol yang benar |
+Strategi: **Recursive IDM** (IDM#1 → mandatory BOS → IDM#2 dalam BOS → WAIT_MSS → entry atau BOS lagi).
+Filter FVG-CHOCH aktif: FVG harus sepenuhnya di atas CHOCH level (Long) / di bawah CHOCH (Short).
 
 ---
 
@@ -695,6 +765,36 @@ def _render_html() -> bytes:
         </table>
     '''
 
+    # ── win/loss analysis table ──
+    wl_rows = ''
+    for r in res_cp:
+        if r.get('status') != 'ok' or r.get('trades', 0) == 0:
+            continue
+        wl  = r.get('win_loss', {})
+        ws  = wl.get('win')
+        ls  = wl.get('loss')
+        ins = _insight(ws, ls)
+        wl_rows += (
+            f'<tr>'
+            f'<td><b>{r["symbol"]}</b></td>'
+            f'<td class="g">{_fmt_grp(ws)}</td>'
+            f'<td class="r">{_fmt_grp(ls)}</td>'
+            f'<td class="y">{ins}</td>'
+            f'</tr>\n'
+        )
+
+    wl_table = f'''
+        <table>
+          <tr>
+            <th>Coin</th>
+            <th>✅ Win ({total_win if total_n else 0}) — pola rata-rata</th>
+            <th>❌ Loss ({total_loss if total_n else 0}) — pola rata-rata</th>
+            <th>💡 Insight</th>
+          </tr>
+          {wl_rows or '<tr><td colspan="4" class="y">Menunggu hasil…</td></tr>'}
+        </table>
+    '''
+
     # ── quarter table ──
     q_rows = ''
     for q, s in qs.items():
@@ -755,6 +855,12 @@ def _render_html() -> bytes:
 
   <h2>Hasil Per Coin</h2>
   {coin_table}
+
+  <h2>Analisis Win/Loss per Coin</h2>
+  <p style="font-size:11px;color:#8b949e">
+    Format: Direction · Entry Type · IDM depth rata-rata · MSS body rata-rata · Volume ratio rata-rata
+  </p>
+  {wl_table}
 
   {'<h2>Per Kuartal (Agregat Semua Coin)</h2>' + q_table if q_table else ''}
 

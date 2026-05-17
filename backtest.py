@@ -705,22 +705,27 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
         mss_range = abs(float(mss_candle['high'])  - float(mss_candle['low']))
         if mss_range > 0 and mss_body / mss_range < 0.30:
             i += 12; continue
+        _mss_body_ratio = round(mss_body / mss_range, 4) if mss_range > 0 else 0.0
 
         # Filter volume — window 20 candle termasuk MSS (identik dengan tail(20) di live bot)
         vol_window = df_m5_full.iloc[max(0, mss_m5_idx - 19): mss_m5_idx + 1]
         avg_vol = vol_window['vol'].mean()
+        _vol_ratio = round(float(mss_candle['vol']) / avg_vol, 4) if avg_vol > 0 else 0.0
         if avg_vol > 0 and float(mss_candle['vol']) / avg_vol < 0.25:
             i += 12; continue
 
         # Filter ATR — window 20 candle termasuk MSS, ref_price = MSS close (identik live bot)
         atr_thresh = ATR_THRESHOLD.get(symbol, 0.0035)
         atr_window = df_m5_full.iloc[max(0, mss_m5_idx - 19): mss_m5_idx + 1]
+        _atr_ratio = 0.0
         if len(atr_window) >= 5:
             h = atr_window['high']; l = atr_window['low']
             pc = atr_window['close'].shift(1)
             tr = pd.concat([h-l, (h-pc).abs(), (l-pc).abs()], axis=1).max(axis=1)
             atr_val = tr.mean()
             ref_price = float(mss_candle['close'])
+            if atr_thresh > 0 and ref_price > 0:
+                _atr_ratio = round((atr_val / ref_price) / atr_thresh, 3)
             if ref_price > 0 and (atr_val / ref_price) < atr_thresh:
                 i += 12; continue
 
@@ -762,18 +767,24 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
             in_trade_until_idx = mss_m5_idx + 300
 
         trades.append({
-            'symbol'     : symbol,
-            'type'       : stype,
-            'entry_ts'   : df_m5_full.iloc[mss_m5_idx]['ts'],
-            'exit_ts'    : exit_ts,
-            'entry'      : round(entry_price, 8),
-            'sl'         : round(sl_price, 8),
-            'tp'         : round(final_tp, 8),
-            'exit_price' : round(exit_p, 8),
-            'outcome'    : outcome,
-            'pnl_usd'    : round(pnl, 4),
-            'balance'    : round(balance, 4),
-            'trigger'    : result['trigger'],
+            'symbol'         : symbol,
+            'type'           : stype,
+            'entry_ts'       : df_m5_full.iloc[mss_m5_idx]['ts'],
+            'exit_ts'        : exit_ts,
+            'entry'          : round(entry_price, 8),
+            'sl'             : round(sl_price, 8),
+            'tp'             : round(final_tp, 8),
+            'exit_price'     : round(exit_p, 8),
+            'outcome'        : outcome,
+            'pnl_usd'        : round(pnl, 4),
+            'balance'        : round(balance, 4),
+            'trigger'        : result['trigger'],
+            'idm_depth'      : _depth,
+            'mss_body_ratio' : _mss_body_ratio,
+            'vol_ratio'      : _vol_ratio,
+            'atr_ratio'      : _atr_ratio,
+            'entry_type'     : 'breaker' if bb is not None else 'fvg',
+            'sl_dist_pct'    : round(dist / entry_price, 6) if entry_price > 0 else 0.0,
         })
 
         i = in_trade_until_idx + 1
