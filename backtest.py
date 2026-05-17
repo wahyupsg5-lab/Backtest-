@@ -499,7 +499,11 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
     H1_WINDOW = 100    # 100 jam H1 untuk analisis
 
     total = len(df_m5_full)
-    last_bos_key = None
+    # Rolling BOS state — tidak ada timeout, hanya CHOCH yang cancel
+    active_bos_key = None
+    active_gaps    = []
+    active_choch   = None
+    active_stype   = None
 
     i = WARMUP_M5
     while i < total - 50:
@@ -535,80 +539,84 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
                 swing_val = sl['val']
                 bos_idx   = sh_h1[-1]['idx'] if sh_h1 else sl['idx']
 
-        if not (is_long or is_short) or swing_val is None:
+        # Jika ada BOS baru → update active state (replace BOS lama)
+        if (is_long or is_short) and swing_val is not None:
+            stype_new = "Short" if is_short else "Long"
+            bos_key   = (stype_new, round(swing_val, 8))
+
+            if bos_key != active_bos_key:
+                # CHOCH level untuk BOS baru
+                if stype_new == "Long":
+                    sl_below  = [s for s in sl_h1 if s['val'] < swing_val]
+                    choch_new = sl_below[-1]['val'] if sl_below else None
+                else:
+                    sh_above  = [s for s in sh_h1 if s['val'] > swing_val]
+                    choch_new = sh_above[-1]['val'] if sh_above else None
+
+                # FVG di dalam BOS baru, filter straddle CHOCH
+                gaps_new = get_internal_gaps(df_h1, stype_new, bos_idx)
+                if choch_new:
+                    if stype_new == "Long":
+                        gaps_new = [g for g in gaps_new if g['bottom'] >= choch_new]
+                    else:
+                        gaps_new = [g for g in gaps_new if g['top'] <= choch_new]
+
+                active_bos_key = bos_key
+                active_gaps    = gaps_new
+                active_choch   = choch_new
+                active_stype   = stype_new
+
+        # Tidak ada setup aktif → lanjut 1 jam
+        if not active_gaps:
             i += 12; continue
 
-        stype = "Short" if is_short else "Long"
+        # CHOCH check: close terakhir dalam blok H1 ini
+        blk_end_m5      = min(i + 12, total)
+        blk_close_slice = df_m5_full['close'].iloc[i:blk_end_m5]
+        if len(blk_close_slice) > 0:
+            blk_c_last = float(blk_close_slice.iloc[-1])
+            if active_choch is not None:
+                if active_stype == "Long"  and blk_c_last < active_choch:
+                    active_bos_key = None; active_gaps = []
+                    active_choch   = None; active_stype = None
+                    i += 12; continue
+                if active_stype == "Short" and blk_c_last > active_choch:
+                    active_bos_key = None; active_gaps = []
+                    active_choch   = None; active_stype = None
+                    i += 12; continue
 
-        # EMA50 filter (DISABLED — sinkron live bot)
-        ema50 = calc_ema(df_h1['close'], 50).iloc[-1]
-        # if stype == "Long"  and curr_h1['close'] < ema50: i += 12; continue
-        # if stype == "Short" and curr_h1['close'] > ema50: i += 12; continue
-
-        bos_key = (stype, round(swing_val, 8))
-        if bos_key == last_bos_key:
-            i += 12; continue
-        last_bos_key = bos_key
-
-        # CHOCH level dulu — agar bisa filter FVG yang straddle CHOCH
-        if stype == "Long":
-            sl_below    = [s for s in sl_h1 if s['val'] < swing_val]
-            choch_level = sl_below[-1]['val'] if sl_below else None
-        else:
-            sh_above    = [s for s in sh_h1 if s['val'] > swing_val]
-            choch_level = sh_above[-1]['val'] if sh_above else None
-
-        # FVG — filter FVG yang straddle CHOCH (bottom < CHOCH untuk Long / top > CHOCH untuk Short)
-        gaps = get_internal_gaps(df_h1, stype, bos_idx)
-        if choch_level:
-            if stype == "Long":
-                gaps = [g for g in gaps if g['bottom'] >= choch_level]
-            else:
-                gaps = [g for g in gaps if g['top'] <= choch_level]
-        if not gaps:
+        # Hapus FVG yang sudah dilanggar (close menembus body FVG)
+        last_c_blk  = float(df_m5_full['close'].iloc[blk_end_m5 - 1]) if blk_end_m5 > i else 0.0
+        active_gaps = [
+            g for g in active_gaps
+            if not (active_stype == "Long"  and last_c_blk < float(g['bottom']))
+            and not (active_stype == "Short" and last_c_blk > float(g['top']))
+        ]
+        if not active_gaps:
             i += 12; continue
 
-        # ── Scan FVG touch di M5 — per blok H1 (max 96 jam) ──
-        scan_end = min(total - 1, i + 12 * 96)
-        scan_slice = df_m5_full.iloc[i:scan_end]
-        seg_h = scan_slice['high'].to_numpy(dtype=float)
-        seg_l = scan_slice['low'].to_numpy(dtype=float)
-        seg_c = scan_slice['close'].to_numpy(dtype=float)
-        seg_o = scan_slice['open'].to_numpy(dtype=float)
-        seg_len = len(seg_h)
+        # Scan M5 dalam blok H1 ini untuk FVG touch
         found_fvg_idx = -1
-        used_fvg = None
-        choch_triggered = False
+        used_fvg      = None
 
-        for fvg in gaps:
+        for fvg in active_gaps:
             fvg_top = float(fvg['top']); fvg_bot = float(fvg['bottom'])
-            blk_i = 0
-            while blk_i < seg_len:
-                blk_end = min(blk_i + 12, seg_len)
-                blk_h   = seg_h[blk_i:blk_end].max()
-                blk_l   = seg_l[blk_i:blk_end].min()
-                blk_c   = seg_c[blk_end - 1]
-                # CHOCH: struktur berbalik → setup batal
-                if choch_level:
-                    if stype == "Long"  and blk_c < choch_level:
-                        choch_triggered = True; break
-                    if stype == "Short" and blk_c > choch_level:
-                        choch_triggered = True; break
-                # Broken FVG?
-                if stype == "Long"  and blk_c < fvg_bot: break
-                if stype == "Short" and blk_c > fvg_top: break
-                # Touch?
-                if stype == "Long"  and blk_l <= fvg_top:
-                    found_fvg_idx = i + blk_i; used_fvg = fvg; break
-                if stype == "Short" and blk_h >= fvg_bot:
-                    found_fvg_idx = i + blk_i; used_fvg = fvg; break
-                blk_i += 12
-            if choch_triggered or found_fvg_idx >= 0: break
+            for k in range(i, blk_end_m5):
+                ck = df_m5_full.iloc[k]
+                if active_stype == "Long"  and float(ck['low'])  <= fvg_top:
+                    found_fvg_idx = k; used_fvg = fvg; break
+                if active_stype == "Short" and float(ck['high']) >= fvg_bot:
+                    found_fvg_idx = k; used_fvg = fvg; break
+            if found_fvg_idx >= 0: break
 
-        if choch_triggered:
-            i += 12; continue
         if found_fvg_idx < 0:
-            i += 12 * 24; continue   # tidak ada FVG touch, lompat 24 jam
+            i += 12; continue  # tidak ada touch H1 ini → lanjut 1 jam saja
+
+        # ── FVG touch ditemukan → lanjut IDM, reset active state ──
+        stype       = active_stype
+        choch_level = active_choch
+        active_bos_key = None; active_gaps = []
+        active_choch   = None; active_stype = None
 
         # ── IDM M5 setelah FVG touch (max 24 jam) ──
         idm_end = min(total - 1, found_fvg_idx + 12 * 48)  # diperlebar: 48 jam
