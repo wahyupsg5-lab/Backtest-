@@ -107,7 +107,7 @@ ATR_THRESHOLD = {
     'STORJUSDT'     : 0.0017,   # P25=0.172%
     'ENAUSDT'       : 0.0039,   # P25=0.388%
     'ADAUSDT'       : 0.0025,   # P25=0.247%
-    'SHIB1000USDT'  : 0.0035,   # default — akan di-override saat runtime
+    'SHIB1000USDT'  : 0.0020,   # P25=0.197%
 }
 
 def _parse_one_file(path):
@@ -701,15 +701,15 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
         if mss_range > 0 and mss_body / mss_range < 0.30:
             i += 12; continue
 
-        # Filter volume
-        vol_window = df_m5_full.iloc[max(0, mss_m5_idx - 20): mss_m5_idx]
+        # Filter volume — window 20 candle termasuk MSS (identik dengan tail(20) di live bot)
+        vol_window = df_m5_full.iloc[max(0, mss_m5_idx - 19): mss_m5_idx + 1]
         avg_vol = vol_window['vol'].mean()
         if avg_vol > 0 and float(mss_candle['vol']) / avg_vol < 0.25:
             i += 12; continue
 
-        # Filter ATR adaptif — gunakan dict module-level ATR_THRESHOLD
+        # Filter ATR — window 20 candle termasuk MSS, ref_price = MSS close (identik live bot)
         atr_thresh = ATR_THRESHOLD.get(symbol, 0.0035)
-        atr_window = df_m5_full.iloc[max(0, mss_m5_idx - 14): mss_m5_idx]
+        atr_window = df_m5_full.iloc[max(0, mss_m5_idx - 19): mss_m5_idx + 1]
         if len(atr_window) >= 5:
             h = atr_window['high']; l = atr_window['low']
             pc = atr_window['close'].shift(1)

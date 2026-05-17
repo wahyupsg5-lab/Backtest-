@@ -81,6 +81,8 @@ SYMBOLS = [
     'AVAXUSDT', 'ONDOUSDT', 'EIGENUSDT', 'LINKUSDT', 'VIRTUALUSDT', 'ORCAUSDT',
     # Rehabilitasi (dari backtest run 2 — recursive IDM)
     'DOGEUSDT', 'ARBUSDT', 'NEARUSDT', 'STORJUSDT', 'ENAUSDT', 'ADAUSDT',
+    # Baru
+    'SHIB1000USDT',
 ]
 
 
@@ -1226,6 +1228,7 @@ def run_bot():
                             'STORJUSDT'     : 0.0017,   # P25=0.172%
                             'ENAUSDT'       : 0.0039,   # P25=0.388%
                             'ADAUSDT'       : 0.0025,   # P25=0.247%
+                            'SHIB1000USDT'  : 0.0020,   # P25=0.197%
                         }
                         atr_thresh = ATR_THRESHOLD.get(coin, 0.0035)
                         df_atr_m5  = get_data(coin, "5", limit=20)
