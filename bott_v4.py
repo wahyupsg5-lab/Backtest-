@@ -551,7 +551,7 @@ def find_breaker_block(df_m5, mss_ts, stype):
 # ============================================================
 
 def place_limit_order(symbol, side, entry, sl, tp):
-    """Market order — entry langsung saat MSS terkonfirmasi."""
+    """Limit GTC order di Breaker Block — entry saat harga pullback ke BB setelah MSS."""
     try:
         info     = get_instrument_info(symbol)
         res_bal  = session.get_wallet_balance(accountType="UNIFIED", coin="USDT")
@@ -560,57 +560,40 @@ def place_limit_order(symbol, side, entry, sl, tp):
         dist     = abs(entry - sl)
         if dist == 0:
             print(f"⚠️ {symbol}: dist entry-SL = 0, skip.")
-            return False
-
-        # Gunakan harga pasar saat ini untuk dist — karena order MARKET, fill di market price
-        # bukan di harga BB. Ini memastikan risk ≤ 1% dan TP tetap 3R dari fill actual.
-        try:
-            ticker       = session.get_tickers(category=CATEGORY, symbol=symbol)
-            market_price = float(ticker['result']['list'][0]['lastPrice'])
-            market_dist  = abs(market_price - sl)
-            if market_dist > dist:
-                dist = market_dist
-                # Rekalkulasi TP agar tetap 3R dari fill actual
-                if side == "Buy":
-                    tp = round(market_price + market_dist * 3, 8)
-                else:
-                    tp = round(market_price - market_dist * 3, 8)
-        except Exception:
-            pass  # fallback ke dist/tp BB jika fetch gagal
+            return None
 
         # Minimum SL distance 0.5% dari harga entry
-        # Mencegah qty raksasa saat SL terlalu dekat
         min_dist = entry * 0.005
         if dist < min_dist:
             print(f"⚠️ {symbol}: SL terlalu dekat ({dist:.8f} < min {min_dist:.8f}), diperlebar ke 0.5%")
             dist = min_dist
 
-        # [v5] FIX #1: Validasi TP arah benar
+        # Validasi TP arah benar
         if side == "Buy"  and tp <= entry:
             print(f"⚠️ {symbol}: TP ({tp}) ≤ entry ({entry}) untuk Long — skip.")
-            return False
+            return None
         if side == "Sell" and tp >= entry:
             print(f"⚠️ {symbol}: TP ({tp}) ≥ entry ({entry}) untuk Short — skip.")
-            return False
+            return None
 
-        # [v5.4b-1R] R:R check: TP sudah di-set ke 1R, hanya validasi minimal 0.8
-        tp_dist = abs(tp - entry)
+        # R:R check minimal 0.8
+        tp_dist  = abs(tp - entry)
         rr_check = tp_dist / dist if dist > 0 else 0
         if rr_check < 0.8:
             print(f"⚠️ {symbol}: R:R sangat rendah ({rr_check:.2f} < 0.8) — skip.")
-            return False
+            return None
 
         raw_qty = risk_usd / dist
         qty     = round_qty(raw_qty, info['qty_step'])
         if qty < info['min_qty']:
             print(f"⚠️ {symbol}: Qty {qty} < minOrderQty {info['min_qty']}, skip.")
-            return False
+            return None
 
-        sl_r = round_price(sl,  info['tick_size'])
-        tp_r = round_price(tp,  info['tick_size'])
+        entry_r = round_price(entry, info['tick_size'])
+        sl_r    = round_price(sl,    info['tick_size'])
+        tp_r    = round_price(tp,    info['tick_size'])
 
         # Set leverage ke minimum dari (10x, maxLeverage coin)
-        # Bybit error 110013 muncul saat leverage melebihi maxLeverage coin
         try:
             max_lev = float(info.get('max_leverage', 10))
             lev     = str(int(min(10, max_lev)))
@@ -619,22 +602,22 @@ def place_limit_order(symbol, side, entry, sl, tp):
                 buyLeverage=lev, sellLeverage=lev
             )
         except Exception:
-            pass  # Kalau gagal set leverage, lanjut saja
+            pass
 
-        print(f"   Balance:{balance:.2f} Risk:{risk_usd:.2f} Dist:{dist:.6f} Qty:{qty}")
+        print(f"   Balance:{balance:.2f} Risk:{risk_usd:.2f} Dist:{dist:.6f} Qty:{qty} Entry:{entry_r}")
         res = session.place_order(
             category=CATEGORY, symbol=symbol, side=side,
-            orderType="Market", qty=str(qty),
+            orderType="Limit", price=str(entry_r), qty=str(qty),
             stopLoss=str(sl_r), takeProfit=str(tp_r),
-            timeInForce="IOC"
+            timeInForce="GTC"
         )
         if res['retCode'] == 0:
-            return True
+            return res['result']['orderId']
         print(f"⚠️ {symbol}: Order ditolak → {res.get('retMsg','')} (code:{res['retCode']})")
-        return False
+        return None
     except Exception as e:
         print(f"⚠️ {symbol}: place_order error → {e}")
-        return False
+        return None
 
 
 def get_open_position(symbol):
@@ -938,6 +921,41 @@ def run_bot():
                 if coin in pending:
                     setup    = pending[coin]
                     stype     = setup['type']
+
+                    # ── PHASE: WAIT_FILL — nunggu limit order fill di BB ──
+                    if setup['phase'] == 'WAIT_FILL':
+                        import time as _time
+                        order_id    = setup['limit_order_id']
+                        placed_at   = setup['limit_placed_at']  # ms
+                        elapsed_min = (_time.time() * 1000 - placed_at) / 60000
+                        pos = get_open_position(coin)
+                        if pos is not None:
+                            # Limit order terisi — pindah ke active_positions
+                            print(f"✅ {coin}: Limit FILL @ {setup['limit_entry']:.6f}! "
+                                  f"Elapsed: {elapsed_min:.0f} mnt")
+                            active_positions[coin] = {
+                                'side'      : setup['limit_side'],
+                                'entry'     : setup['limit_entry'],
+                                'sl'        : setup['limit_sl'],
+                                'sl_dist'   : abs(setup['limit_entry'] - setup['limit_sl']),
+                                'tp'        : setup['limit_tp'],
+                                'sl_moved'  : False,
+                                'entry_time': _time.time(),
+                            }
+                            del pending[coin]
+                        elif elapsed_min > 150:  # 30 candle × 5 mnt = 150 mnt
+                            try:
+                                session.cancel_order(category=CATEGORY, symbol=coin, orderId=order_id)
+                                print(f"⏰ {coin}: Limit order dibatalkan (timeout {elapsed_min:.0f} mnt).")
+                            except Exception as _e:
+                                print(f"⚠️ {coin}: Gagal cancel limit: {_e}")
+                            del pending[coin]
+                        else:
+                            remaining = int((150 - elapsed_min) / 5)
+                            print(f"⏳ {coin}: Nunggu limit fill @ {setup['limit_entry']:.6f} "
+                                  f"| {remaining} candle sisa ({elapsed_min:.0f} mnt elapsed)")
+                        continue
+
                     fvg_idx   = setup['fvg_idx']
                     bos_idx   = setup.get('bos_idx', 0)
                     swing_val = setup.get('swing_val')
@@ -1322,19 +1340,17 @@ def run_bot():
 
                         print(f"🎯 {coin}: {side_order} @ {entry_price} | SL {sl_price} | TP {final_tp}")
 
-                        if place_limit_order(coin, side_order, entry_price, sl_price, final_tp):
-                            print(f"✅ {coin}: ORDER TERPASANG!")
+                        order_id = place_limit_order(coin, side_order, entry_price, sl_price, final_tp)
+                        if order_id:
                             import time as _time
-                            active_positions[coin] = {
-                                'side'       : side_order,
-                                'entry'      : entry_price,
-                                'sl'         : sl_price,
-                                'sl_dist'    : dist,
-                                'tp'         : setup['tp'],
-                                'sl_moved'   : False,
-                                'entry_time' : _time.time(),   # [v5.4b] untuk Time-BE
-                            }
-                            del pending[coin]
+                            print(f"✅ {coin}: LIMIT ORDER @ {entry_price:.6f} terpasang (ID: {order_id})")
+                            pending[coin]['phase']          = 'WAIT_FILL'
+                            pending[coin]['limit_order_id'] = order_id
+                            pending[coin]['limit_placed_at'] = int(_time.time() * 1000)
+                            pending[coin]['limit_entry']    = entry_price
+                            pending[coin]['limit_sl']       = sl_price
+                            pending[coin]['limit_tp']       = final_tp
+                            pending[coin]['limit_side']     = side_order
                         else:
                             print(f"⚠️ {coin}: Gagal pasang order. Setup dibatalkan agar tidak retry terus.")
                             del pending[coin]

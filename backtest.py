@@ -729,33 +729,51 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
             # if ref_price > 0 and (atr_val / ref_price) < atr_thresh:
             #     i += 12; continue
 
-        # ── Entry: Market order di MSS close (sinkron dengan live bot) ──
-        # Live bot pakai MARKET order saat MSS close → fill di harga pasar saat itu.
-        # SL tetap dari Breaker Block (structural), TP = 3R dari fill actual.
+        # ── Entry: Limit order di Breaker Block (realistic SMC execution) ──
+        # Setelah MSS, harga biasanya pullback ke zona BB sebelum lanjut.
+        # Pasang limit order di bb['entry'], tunggu fill. Skip jika timeout (30 candle ~2.5 jam).
         df_bb = df_m5_full.iloc[max(0, mss_m5_idx - 20): mss_m5_idx + 1].reset_index(drop=True)
         bb = find_breaker_block(df_bb, int(mss_candle['ts_ms']), stype)
 
-        # Entry = MSS close (market fill), bukan BB price
-        entry_price = float(mss_candle['close'])
+        if bb is None:
+            i += 12; continue  # tidak ada BB → tidak bisa pasang limit
 
-        if bb is not None:
-            sl_price = bb['sl']
-        else:
-            sl_price = float(mss_candle['low']) if stype == "Long" else float(mss_candle['high'])
-
-        if entry_price is None or sl_price is None:
-            i += 12; continue
-
-        dist = abs(entry_price - sl_price)
+        bb_entry = bb['entry']
+        sl_price = bb['sl']
+        dist     = abs(bb_entry - sl_price)
         if dist == 0:
             i += 12; continue
 
-        tp_dist = dist * 3  # TP = 3R dari fill actual
-        final_tp = entry_price + tp_dist if stype == "Long" else entry_price - tp_dist
+        # Scan forward: cari candle pertama harga menyentuh BB (limit fill)
+        FILL_TIMEOUT = 30  # candle (~2.5 jam)
+        fill_idx = None
+        for j in range(mss_m5_idx + 1, min(mss_m5_idx + 1 + FILL_TIMEOUT, len(df_m5_full))):
+            candle_j = df_m5_full.iloc[j]
+            low_j    = float(candle_j['low'])
+            high_j   = float(candle_j['high'])
+            if stype == "Long":
+                if low_j <= sl_price:   # SL ditembus sebelum fill → skip
+                    break
+                if low_j <= bb_entry:   # harga pullback ke BB → fill
+                    fill_idx = j
+                    break
+            else:  # Short
+                if high_j >= sl_price:  # SL ditembus sebelum fill → skip
+                    break
+                if high_j >= bb_entry:  # harga bounce ke BB → fill
+                    fill_idx = j
+                    break
 
-        # ── Simulasi ──
+        if fill_idx is None:
+            i += 12; continue  # tidak fill dalam timeout atau SL duluan
+
+        entry_price = bb_entry
+        tp_dist     = dist * 3
+        final_tp    = entry_price + tp_dist if stype == "Long" else entry_price - tp_dist
+
+        # ── Simulasi (dari fill_idx — TP/SL tracking mulai setelah limit fill) ──
         pnl, outcome, exit_p, exit_ts = simulate_trade(
-            df_m5_full, mss_m5_idx, entry_price, sl_price, final_tp, stype, balance
+            df_m5_full, fill_idx, entry_price, sl_price, final_tp, stype, balance
         )
         if outcome == 'skip':
             i += 12; continue
@@ -772,7 +790,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
         trades.append({
             'symbol'         : symbol,
             'type'           : stype,
-            'entry_ts'       : df_m5_full.iloc[mss_m5_idx]['ts'],
+            'entry_ts'       : df_m5_full.iloc[fill_idx]['ts'],
             'exit_ts'        : exit_ts,
             'entry'          : round(entry_price, 8),
             'sl'             : round(sl_price, 8),
