@@ -746,33 +746,28 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
             #     i += 12; continue
 
         # ── Entry: Contrarian — fade the MSS ──
-        # Entry = MSS close. SL = mirror BB di sisi lain (1:1 dari BB).
-        # TP = 5× jarak SL (R:R 1:5).
+        # Entry = MSS close. SL = 1/3 × choch_dist. TP = 5× SL (R:R 1:5).
         entry_price = float(mss_candle['close'])
         trade_stype = "Short" if stype == "Long" else "Long"
 
-        df_bb = df_m5_full.iloc[max(0, mss_m5_idx - 20): mss_m5_idx + 1].reset_index(drop=True)
-        bb    = find_breaker_block(df_bb, int(mss_candle['ts_ms']), stype)
+        if choch_level is None: i += 12; continue
 
-        if bb is not None:
-            dist = abs(entry_price - bb['entry'])  # impulse MSS close → BB
-        else:
-            # Fallback: pakai body MSS candle sebagai referensi jarak
-            dist = abs(entry_price - float(mss_candle['open']))
+        choch_dist = abs(entry_price - choch_level)
+        if choch_dist == 0: i += 12; continue
 
-        if dist == 0: i += 12; continue
+        sl_dist = choch_dist / 3
 
-        # Enforce min dist
+        # Enforce minimum SL distance
         min_dist = entry_price * MIN_DIST_PCT
-        if dist < min_dist:
-            dist = min_dist
+        if sl_dist < min_dist:
+            sl_dist = min_dist
 
         if trade_stype == "Short":
-            sl_price = entry_price + dist * 3     # SL 3× dist di atas entry
-            final_tp = entry_price - dist * 5     # TP 5× dist ke bawah
+            sl_price = entry_price + sl_dist       # SL 1/3 choch_dist di atas entry
+            final_tp = entry_price - sl_dist * 5   # TP 5× SL ke bawah
         else:
-            sl_price = entry_price - dist * 3     # SL 3× dist di bawah entry
-            final_tp = entry_price + dist * 5     # TP 5× dist ke atas
+            sl_price = entry_price - sl_dist       # SL 1/3 choch_dist di bawah entry
+            final_tp = entry_price + sl_dist * 5   # TP 5× SL ke atas
 
         # ── Simulasi (dari mss_m5_idx, arah dibalik) ──
         pnl, outcome, exit_p, exit_ts = simulate_trade(
@@ -824,7 +819,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
             'mss_body_ratio' : _mss_body_ratio,
             'vol_ratio'      : _vol_ratio,
             'atr_ratio'      : _atr_ratio,
-            'sl_dist_pct'    : round(dist / entry_price, 6) if entry_price > 0 else 0.0,
+            'sl_dist_pct'    : round(sl_dist / entry_price, 6) if entry_price > 0 else 0.0,
             'sl_then_tp'     : sl_then_tp,
             'sl_choch'       : sl_choch,
         })
