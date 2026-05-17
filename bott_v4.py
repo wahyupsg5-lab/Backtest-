@@ -563,15 +563,20 @@ def place_limit_order(symbol, side, entry, sl, tp):
             return False
 
         # Gunakan harga pasar saat ini untuk dist — karena order MARKET, fill di market price
-        # bukan di harga BB. Ini memastikan risk ≤ 1% dari balance.
+        # bukan di harga BB. Ini memastikan risk ≤ 1% dan TP tetap 3R dari fill actual.
         try:
             ticker       = session.get_tickers(category=CATEGORY, symbol=symbol)
             market_price = float(ticker['result']['list'][0]['lastPrice'])
             market_dist  = abs(market_price - sl)
             if market_dist > dist:
                 dist = market_dist
+                # Rekalkulasi TP agar tetap 3R dari fill actual
+                if side == "Buy":
+                    tp = round(market_price + market_dist * 3, 8)
+                else:
+                    tp = round(market_price - market_dist * 3, 8)
         except Exception:
-            pass  # fallback ke dist BB jika fetch gagal
+            pass  # fallback ke dist/tp BB jika fetch gagal
 
         # Minimum SL distance 0.5% dari harga entry
         # Mencegah qty raksasa saat SL terlalu dekat
