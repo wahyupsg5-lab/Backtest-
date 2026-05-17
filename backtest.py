@@ -751,37 +751,48 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
             # if ref_price > 0 and (atr_val / ref_price) < atr_thresh:
             #     i += 12; continue
 
-        # ── Entry: Follow MSS — Long MSS → Long, Short MSS → Short ──
-        # Entry = MSS close (market). SL = bb['sl']. TP = 3R.
-        entry_price = float(mss_candle['close'])
+        # ── Entry: Limit di bb['sl'], tunggu koreksi ──
+        # R = dist = abs(MSS_close - bb['sl']). SL = 5R, TP = 3R dari limit_entry.
+        mss_close   = float(mss_candle['close'])
         trade_stype = stype
 
         df_bb = df_m5_full.iloc[max(0, mss_m5_idx - 20): mss_m5_idx + 1].reset_index(drop=True)
         bb    = find_breaker_block(df_bb, int(mss_candle['ts_ms']), stype)
+        if bb is None: c_dir_fail += 1; i += 12; continue
 
-        if bb is not None:
-            sl_price = bb['sl']
-        else:
-            pct      = entry_price * 0.01
-            sl_price = (entry_price - pct) if stype == "Long" else (entry_price + pct)
-
-        dist = abs(entry_price - sl_price)
+        limit_entry = bb['sl']                     # entry = bb['sl'] (limit order)
+        dist        = abs(mss_close - limit_entry) # 1R reference
         if dist == 0: i += 12; continue
 
-        # Enforce minimum SL distance
-        min_dist = entry_price * MIN_DIST_PCT
-        if dist < min_dist:
-            dist     = min_dist
-            sl_price = (entry_price - dist) if stype == "Long" else (entry_price + dist)
+        min_dist = limit_entry * MIN_DIST_PCT
+        if dist < min_dist: c_dir_fail += 1; i += 12; continue
 
         if stype == "Long":
-            final_tp = entry_price + dist * 3
+            sl_price = limit_entry - dist * 5   # SL 5R di bawah entry
+            final_tp = limit_entry + dist * 3   # TP 3R di atas entry
         else:
-            final_tp = entry_price - dist * 3
+            sl_price = limit_entry + dist * 5   # SL 5R di atas entry
+            final_tp = limit_entry - dist * 3   # TP 3R di bawah entry
 
-        # ── Simulasi ──
+        # Scan untuk limit fill (max 60 candle = 5 jam)
+        FILL_TIMEOUT = 60
+        fill_idx = None
+        for j in range(mss_m5_idx + 1, min(mss_m5_idx + 1 + FILL_TIMEOUT, len(df_m5_full))):
+            cj = df_m5_full.iloc[j]
+            if stype == "Long":
+                if float(cj['high']) >= final_tp:   break             # TP duluan → tidak fill
+                if float(cj['low'])  <= limit_entry: fill_idx = j; break  # koreksi ke entry → fill
+            else:
+                if float(cj['low'])  <= final_tp:   break
+                if float(cj['high']) >= limit_entry: fill_idx = j; break
+
+        if fill_idx is None: c_dir_fail += 1; i += 12; continue
+
+        entry_price = limit_entry   # actual fill price
+
+        # ── Simulasi dari fill_idx ──
         pnl, outcome, exit_p, exit_ts = simulate_trade(
-            df_m5_full, mss_m5_idx, entry_price, sl_price, final_tp, trade_stype, balance,
+            df_m5_full, fill_idx, entry_price, sl_price, final_tp, trade_stype, balance,
             _skip_reasons=c_simskip_reasons
         )
         if outcome == 'skip':
@@ -789,12 +800,12 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
 
         balance += pnl
 
-        # Cari exit index
+        # Cari exit index dari fill_idx
         if exit_ts is not None:
             exit_rows = df_m5_full[df_m5_full['ts'] == exit_ts].index
-            in_trade_until_idx = int(exit_rows[0]) if len(exit_rows) else mss_m5_idx + 300
+            in_trade_until_idx = int(exit_rows[0]) if len(exit_rows) else fill_idx + 300
         else:
-            in_trade_until_idx = mss_m5_idx + 300
+            in_trade_until_idx = fill_idx + 300
 
         # SL→TP DIAG + MAE
         sl_then_tp = False
@@ -813,7 +824,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
                     if low_k  <= final_tp: sl_then_tp = True; tp_hit_idx = k; break
 
             if sl_then_tp and tp_hit_idx is not None and dist > 0:
-                window = df_m5_full.iloc[mss_m5_idx : tp_hit_idx + 1]
+                window = df_m5_full.iloc[fill_idx : tp_hit_idx + 1]
                 if trade_stype == "Long":
                     mae_price = float(window['low'].min())
                     mae_r = (entry_price - mae_price) / dist
@@ -825,7 +836,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
             'symbol'         : symbol,
             'type'           : trade_stype,
             'setup_type'     : stype,
-            'entry_ts'       : df_m5_full.iloc[mss_m5_idx]['ts'],
+            'entry_ts'       : df_m5_full.iloc[fill_idx]['ts'],
             'exit_ts'        : exit_ts,
             'entry'          : round(entry_price, 8),
             'sl'             : round(sl_price, 8),
