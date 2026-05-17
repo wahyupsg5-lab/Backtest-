@@ -703,7 +703,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
         # Filter MSS strength
         mss_body  = abs(float(mss_candle['close']) - float(mss_candle['open']))
         mss_range = abs(float(mss_candle['high'])  - float(mss_candle['low']))
-        if mss_range > 0 and mss_body / mss_range < 0.40:
+        if mss_range > 0 and mss_body / mss_range < 0.30:
             i += 12; continue
         _mss_body_ratio = round(mss_body / mss_range, 4) if mss_range > 0 else 0.0
 
@@ -711,7 +711,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
         vol_window = df_m5_full.iloc[max(0, mss_m5_idx - 19): mss_m5_idx + 1]
         avg_vol = vol_window['vol'].mean()
         _vol_ratio = round(float(mss_candle['vol']) / avg_vol, 4) if avg_vol > 0 else 0.0
-        if avg_vol > 0 and float(mss_candle['vol']) / avg_vol < 0.50:
+        if avg_vol > 0 and float(mss_candle['vol']) / avg_vol < 0.25:
             i += 12; continue
 
         # Filter ATR — window 20 candle termasuk MSS, ref_price = MSS close (identik live bot)
