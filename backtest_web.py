@@ -22,13 +22,10 @@ PORT             = int(os.environ.get('PORT', 8080))
 INITIAL_BALANCE  = 10.0   # modal awal $10
 
 COINS = [
-    'XVGUSDT', 'BELUSDT', 'TAOUSDT', '1000BONKUSDT', 'BERAUSDT',
-    'USUALUSDT',
-    'FARTCOINUSDT', '1000PEPEUSDT',
-    'WIFUSDT', 'PENGUUSDT', 'PNUTUSDT',
-    'SUIUSDT', 'AVAXUSDT', 'ONDOUSDT', 'EIGENUSDT',
-    'LINKUSDT',
-    'VIRTUALUSDT', 'ORCAUSDT',
+    # Coin yang pernah dibuang — ditest ulang dengan strategi recursive IDM baru
+    'DOGEUSDT', '1000FLOKIUSDT', 'ENAUSDT',
+    'INJUSDT', 'ICPUSDT', 'ARBUSDT',
+    'TONUSDT', 'ADAUSDT', 'STORJUSDT', 'NEARUSDT',
 ]
 
 # 2025-01-01 00:00:00 UTC  →  2025-12-31 23:59:59 UTC  (dalam ms)
@@ -308,7 +305,7 @@ def _run():
     global _phase, _results, _quarter_stats, _all_trades, _compound_final_bal
 
     _log_msg("=" * 62)
-    _log_msg(f"BACKTEST SEMUA COIN BOT LIVE | Full Year 2025 | Modal ${INITIAL_BALANCE:.0f} | Risk 1%")
+    _log_msg(f"BACKTEST COIN EXCLUDED — Strategi Recursive IDM | Full Year 2025 | Modal ${INITIAL_BALANCE:.0f} | Risk 1%")
     _log_msg(f"{len(COINS)} Coins: {', '.join(COINS)}")
     _log_msg("=" * 62)
 
@@ -558,13 +555,16 @@ BOS H1 → EMA50 Filter → FVG Touch → IDM M5 → BOS/Sweep M5 → MSS → En
 SYMBOLS = {COINS}
 ```
 
-## Coin yang Tidak Dimasukkan
+## Catatan
 
-| Coin | Alasan |
-|------|--------|
-| DOGEUSDT | WR 46%, PF 2.02 — konsisten tapi lemah |
+Ini adalah backtest **khusus coin yang sebelumnya dibuang**, diuji ulang dengan strategi **Recursive IDM**
+(IDM#1 → mandatory BOS → IDM#2 dalam BOS → WAIT_MSS → entry atau BOS lagi).
+
+| Coin | Alasan Dibuang (strategi lama) |
+|------|-------------------------------|
+| DOGEUSDT | WR 46%, PF 2.02 — dianggap lemah |
 | 1000FLOKIUSDT | WR 45.8%, PF 1.92 — borderline |
-| ENAUSDT | Bearish 3/4 kuartal, ATR tinggi tapi choppy |
+| ENAUSDT | Bearish 3/4 kuartal, choppy |
 | INJUSDT | WR 40.7%, PF 1.62 |
 | ICPUSDT | Hanya 9 trade/tahun |
 | ARBUSDT | WR 40%, PF 1.57 |
@@ -572,7 +572,7 @@ SYMBOLS = {COINS}
 | ADAUSDT | 9 trade/tahun |
 | STORJUSDT | 5 trade/tahun |
 | NEARUSDT | WR 44% |
-| SHIB1000USDT | Symbol tidak valid di Bybit |
+| SHIB1000USDT | Symbol tidak valid di Bybit (tidak ditest) |
 
 ---
 
@@ -735,12 +735,12 @@ def _render_html() -> bytes:
 <html lang="id">
 <head>
   <meta charset="utf-8">
-  <title>Backtest All Coins — SMC Bot</title>
+  <title>Backtest Excluded Coins — SMC Bot Recursive IDM</title>
   {_CSS}
   {refresh}
 </head>
 <body>
-  <h1>🤖 Backtest SMC Bot — All Coins (Full Year 2025)</h1>
+  <h1>🤖 Backtest SMC Bot — Excluded Coins (Recursive IDM, Full Year 2025)</h1>
   <p>
     <b>{n_done}/{n_total} coin selesai</b> &nbsp;|&nbsp;
     Modal: <b>${INITIAL_BALANCE:.0f}</b> &nbsp;|&nbsp;
