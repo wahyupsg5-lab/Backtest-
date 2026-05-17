@@ -470,14 +470,15 @@ def _gen_readme() -> str:
         roi_c = cpnl / INITIAL_BALANCE * 100
         coin_rows += (
             f"| {sym} | {r['trades']} | {r['wr']:.0f}% | "
-            f"{sign}${cpnl:.2f} | {r['max_dd']:.1f}% | "
+            f"{sign}${cpnl:.2f} | {sign}{roi_c:.0f}% | {r['max_dd']:.1f}% | "
             f"{r['pf']:.2f} | {r['p25_atr']:.4f} |\n"
         )
 
     total_sign = '+' if cpnl_tot >= 0 else ''
+    roi_total_sign = '+' if roi_all >= 0 else ''
     coin_rows += (
         f"| **TOTAL** | **{total_n}** | **{wr_all:.0f}%** | "
-        f"**{total_sign}${cpnl_tot:.2f}** | — | **{pf_all:.2f}** | — |\n"
+        f"**{total_sign}${cpnl_tot:.2f}** | **{roi_total_sign}{roi_all:.0f}%** | — | **{pf_all:.2f}** | — |\n"
     )
 
     # Quarter table
@@ -523,8 +524,8 @@ BOS H1 → EMA50 Filter → FVG Touch → IDM M5 → BOS/Sweep M5 → MSS → En
 
 ### Per Coin (diurutkan PnL terbesar)
 
-| Coin | Trade | WR% | PnL ($) | MaxDD% | PF | ATR P25 |
-|------|------:|----:|--------:|-------:|---:|--------:|
+| Coin | Trade | WR% | PnL ($) | ROI% | MaxDD% | PF | ATR P25 |
+|------|------:|----:|--------:|-----:|-------:|---:|--------:|
 {coin_rows}
 
 **${INITIAL_BALANCE:.2f} → ${final_bal:.2f} dalam setahun (+{roi_all:.0f}% ROI)**
@@ -642,15 +643,17 @@ def _render_html() -> bytes:
         atr_str = f"{r['p25_atr']:.4f}" if 'p25_atr' in r else '—'
         if r.get('status') in ('no_data', 'error'):
             label = '⚠ no data' if r['status'] == 'no_data' else '❌ error'
-            coin_rows += f'<tr><td><b>{sym}</b></td><td class="r" colspan="7">{label}</td></tr>\n'
+            coin_rows += f'<tr><td><b>{sym}</b></td><td class="r" colspan="8">{label}</td></tr>\n'
         elif r.get('trades', 0) == 0:
             coin_rows += (f'<tr><td><b>{sym}</b></td><td class="y">0</td>'
-                          + '<td class="y">—</td>' * 5
+                          + '<td class="y">—</td>' * 6
                           + f'<td>{atr_str}</td></tr>\n')
         else:
             cpnl  = r.get('compound_pnl', r['pnl'])
+            roi   = cpnl / INITIAL_BALANCE * 100
             wr_c  = 'g' if r['wr']     >= 55 else ('y' if r['wr'] >= 45 else 'r')
             pnl_c = 'g' if cpnl        >= 0  else 'r'
+            roi_c = 'g' if roi         >= 0  else 'r'
             dd_c  = 'r' if r['max_dd'] > 20  else ('y' if r['max_dd'] > 10 else 'g')
             pf_c  = 'g' if r['pf']     >= 3  else ('y' if r['pf'] >= 2 else 'r')
             sign  = '+' if cpnl >= 0 else ''
@@ -662,6 +665,7 @@ def _render_html() -> bytes:
                 f'<td>{r["trades"]}</td>'
                 f'<td class="{wr_c}">{r["wr"]:.1f}%</td>'
                 f'<td class="{pnl_c}">{sign}${cpnl:.2f}</td>'
+                f'<td class="{roi_c}">{sign}{roi:.0f}%</td>'
                 f'<td class="{dd_c}">{r["max_dd"]:.1f}%</td>'
                 f'<td class="{pf_c}">{r["pf"]:.2f}</td>'
                 f'<td class="g">{atr_str}</td>'
@@ -669,14 +673,16 @@ def _render_html() -> bytes:
             )
 
     if total_n:
-        wr_tot = total_win / total_n * 100
-        sign   = '+' if total_cpnl >= 0 else ''
+        wr_tot  = total_win / total_n * 100
+        roi_tot = total_cpnl / INITIAL_BALANCE * 100
+        sign    = '+' if total_cpnl >= 0 else ''
         coin_rows += (
             f'<tr style="border-top:2px solid #30363d;font-weight:bold">'
             f'<td>TOTAL ({len(res_cp)} coin)</td>'
             f'<td>{total_n}</td>'
             f'<td class="{"g" if wr_tot>=55 else "y"}">{wr_tot:.1f}%</td>'
             f'<td class="{"g" if total_cpnl>=0 else "r"}">{sign}${total_cpnl:.2f}</td>'
+            f'<td class="{"g" if total_cpnl>=0 else "r"}">{sign}{roi_tot:.0f}%</td>'
             f'<td>—</td><td>—</td>'
             f'<td>—</td></tr>\n'
         )
@@ -685,9 +691,9 @@ def _render_html() -> bytes:
         <table>
           <tr>
             <th>Coin</th><th>Trade</th><th>WR%</th>
-            <th>PnL Compound</th><th>MaxDD%</th><th>PF</th><th>ATR P25</th>
+            <th>PnL Compound</th><th>ROI%</th><th>MaxDD%</th><th>PF</th><th>ATR P25</th>
           </tr>
-          {coin_rows or '<tr><td colspan="7" class="y">Menunggu hasil pertama…</td></tr>'}
+          {coin_rows or '<tr><td colspan="8" class="y">Menunggu hasil pertama…</td></tr>'}
         </table>
     '''
 
