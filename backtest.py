@@ -744,6 +744,9 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
         if dist == 0:
             i += 12; continue
 
+        # Hitung TP dulu agar bisa cek mid-scan (harga ke TP duluan = opportunity gone)
+        final_tp = bb_entry + dist * 3 if stype == "Long" else bb_entry - dist * 3
+
         # Scan forward: cari candle pertama harga menyentuh BB (limit fill)
         FILL_TIMEOUT = 30  # candle (~2.5 jam)
         fill_idx = None
@@ -754,22 +757,24 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
             if stype == "Long":
                 if low_j <= sl_price:   # SL ditembus sebelum fill → skip
                     break
+                if high_j >= final_tp:  # TP tercapai tanpa fill BB → opportunity gone
+                    break
                 if low_j <= bb_entry:   # harga pullback ke BB → fill
                     fill_idx = j
                     break
             else:  # Short
                 if high_j >= sl_price:  # SL ditembus sebelum fill → skip
                     break
+                if low_j <= final_tp:   # TP tercapai tanpa fill BB → opportunity gone
+                    break
                 if high_j >= bb_entry:  # harga bounce ke BB → fill
                     fill_idx = j
                     break
 
         if fill_idx is None:
-            i += 12; continue  # tidak fill dalam timeout atau SL duluan
+            i += 12; continue  # tidak fill dalam timeout, SL duluan, atau TP duluan
 
         entry_price = bb_entry
-        tp_dist     = dist * 3
-        final_tp    = entry_price + tp_dist if stype == "Long" else entry_price - tp_dist
 
         # ── Simulasi (dari fill_idx — TP/SL tracking mulai setelah limit fill) ──
         pnl, outcome, exit_p, exit_ts = simulate_trade(
