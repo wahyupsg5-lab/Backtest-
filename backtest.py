@@ -759,14 +759,14 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
             # Short: TP di bawah entry
             if final_tp >= entry_price: i += 12; continue
             tp_dist  = entry_price - final_tp
-            sl_price = entry_price + tp_dist / 5.0
+            sl_price = entry_price + tp_dist / 3.0
         else:
             # Long: TP di atas entry
             if final_tp <= entry_price: i += 12; continue
             tp_dist  = final_tp - entry_price
-            sl_price = entry_price - tp_dist / 5.0
+            sl_price = entry_price - tp_dist / 3.0
 
-        dist = tp_dist / 5.0   # = abs(entry - sl)
+        dist = tp_dist / 3.0   # = abs(entry - sl)
         if dist == 0: i += 12; continue
 
         # Kalau CHOCH terlalu dekat, SL tidak bisa memenuhi 0.5% min → SimSkip di simulate_trade.
