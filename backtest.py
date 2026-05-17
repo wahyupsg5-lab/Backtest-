@@ -775,6 +775,12 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
             sl_price = entry_price - sl_dist   # SL 1/3 choch_dist di bawah entry
             final_tp = choch_level             # TP tepat di CHOCH (R:R = 3:1)
 
+        # Validasi TP arah: jika CHOCH sudah di sisi yang salah (price melewati CHOCH dalam WAIT_MSS)
+        if trade_stype == "Short" and choch_level >= entry_price:
+            c_dir_fail += 1; i += 12; continue
+        if trade_stype == "Long"  and choch_level <= entry_price:
+            c_dir_fail += 1; i += 12; continue
+
         # ── Simulasi (dari mss_m5_idx, arah dibalik) ──
         pnl, outcome, exit_p, exit_ts = simulate_trade(
             df_m5_full, mss_m5_idx, entry_price, sl_price, final_tp, trade_stype, balance,
