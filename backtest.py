@@ -650,32 +650,64 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
             i += 12; continue
         trigger_m5_idx = df_m5_full[trig_mask].index[0]
 
-        # ── MSS (max 6 jam setelah trigger) ──
-        mss_end = min(total - 1, trigger_m5_idx + 12 * 24)  # diperlebar: 24 jam
-        df_mss  = df_m5_full.iloc[trigger_m5_idx: mss_end].reset_index(drop=True)
-
-        # MSS search — vectorized
+        # ── Recursive IDM loop setelah BOS pertama ──
+        # IDM#1 → mandatory BOS → IDM#n (dalam BOS) → WAIT_MSS
+        # WAIT_MSS: MSS (close balik) = entry | BOS lagi = cari IDM#n+1 (loop)
         mss_candle = None
-        mss_closes = df_mss['close'].to_numpy(dtype=float)
-        if stype == "Long":
-            hits = np.where(mss_closes > new_fh)[0]
-        else:
-            hits = np.where(mss_closes < new_fl)[0]
-        if len(hits) == 0:
+        mss_m5_idx = -1
+        anchor_idx = trigger_m5_idx
+
+        for _depth in range(8):
+            idm_in_end  = min(total - 1, anchor_idx + 12 * 48)
+            df_m5_inner = df_m5_full.iloc[anchor_idx:idm_in_end].reset_index(drop=True)
+            if len(df_m5_inner) < 5:
+                break
+
+            m5_inner = replay_m5(df_m5_inner, stype)
+            if m5_inner['phase'] != 'IDM_TOUCHED':
+                break
+
+            inner_fh  = m5_inner['freeze_high']
+            inner_fl  = m5_inner['freeze_low']
+            inner_fts = m5_inner['freeze_ts']
+
+            inner_mask = df_m5_full['ts_ms'] == inner_fts
+            if not inner_mask.any():
+                break
+            inner_m5_idx = int(df_m5_full[inner_mask].index[0])
+
+            # WAIT_MSS: scan close — MSS (balik arah) atau BOS lagi (lanjut tren)
+            wait_end = min(total - 1, inner_m5_idx + 12 * 24)
+            df_wait  = df_m5_full.iloc[inner_m5_idx:wait_end]
+            c_arr    = df_wait['close'].to_numpy(float)
+
+            if stype == "Long":
+                mss_hits = np.where(c_arr > inner_fh)[0]
+                bos_hits = np.where(c_arr < inner_fl)[0]
+            else:
+                mss_hits = np.where(c_arr < inner_fl)[0]
+                bos_hits = np.where(c_arr > inner_fh)[0]
+
+            first_mss = int(mss_hits[0]) if len(mss_hits) else len(c_arr)
+            first_bos = int(bos_hits[0]) if len(bos_hits) else len(c_arr)
+
+            if len(mss_hits) and first_mss <= first_bos:
+                mss_candle = df_wait.iloc[first_mss]
+                mss_m5_idx = inner_m5_idx + first_mss
+                break
+            elif len(bos_hits) and first_bos < first_mss:
+                anchor_idx = inner_m5_idx + first_bos   # BOS lagi → cari IDM baru
+            else:
+                break  # timeout dalam WAIT_MSS
+
+        if mss_candle is None or mss_m5_idx < 0:
             i += 12 * 6; continue
-        mss_candle = df_mss.iloc[hits[0]]
 
         # Filter MSS strength
         mss_body  = abs(float(mss_candle['close']) - float(mss_candle['open']))
         mss_range = abs(float(mss_candle['high'])  - float(mss_candle['low']))
         if mss_range > 0 and mss_body / mss_range < 0.30:
             i += 12; continue
-
-        # Temukan index MSS di df_m5_full
-        mss_mask = df_m5_full['ts_ms'] == int(mss_candle['ts_ms'])
-        if not mss_mask.any():
-            i += 12; continue
-        mss_m5_idx = df_m5_full[mss_mask].index[0]
 
         # Filter volume
         vol_window = df_m5_full.iloc[max(0, mss_m5_idx - 20): mss_m5_idx]
