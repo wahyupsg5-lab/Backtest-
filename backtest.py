@@ -752,7 +752,10 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
             #     i += 12; continue
 
         # ── Entry: Limit di bb['sl'], tunggu koreksi ──
-        # R = dist = abs(MSS_close - bb['sl']). SL = 5R, TP = 3R dari limit_entry.
+        # 1R = dist = abs(MSS_close - bb['sl']).
+        # Entry = bb['sl']. SL & TP diukur dari MSS_close (bukan entry).
+        # Long : SL = mss_close - 5R, TP = mss_close + 5R
+        # Short: SL = mss_close + 5R, TP = mss_close - 5R
         mss_close   = float(mss_candle['close'])
         trade_stype = stype
 
@@ -768,11 +771,11 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
         if dist < min_dist: c_dir_fail += 1; i += 12; continue
 
         if stype == "Long":
-            sl_price = limit_entry - dist * 5   # SL 5R di bawah entry
-            final_tp = limit_entry + dist * 5   # TP 5R di atas entry
+            sl_price = mss_close - dist * 5   # SL 5R di bawah MSS close
+            final_tp = mss_close + dist * 5   # TP 5R di atas MSS close
         else:
-            sl_price = limit_entry + dist * 5   # SL 5R di atas entry
-            final_tp = limit_entry - dist * 5   # TP 5R di bawah entry
+            sl_price = mss_close + dist * 5   # SL 5R di atas MSS close
+            final_tp = mss_close - dist * 5   # TP 5R di bawah MSS close
 
         # Scan untuk limit fill (max 60 candle = 5 jam)
         FILL_TIMEOUT = 60
