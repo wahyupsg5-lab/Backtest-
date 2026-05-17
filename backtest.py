@@ -744,39 +744,40 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
             # if ref_price > 0 and (atr_val / ref_price) < atr_thresh:
             #     i += 12; continue
 
-        # ── Entry: Market order saat MSS M5 close ──
-        # SL di bb['sl'] — SL asli breaker block (lebih lebar dari bb['entry'],
-        # memberi ruang untuk wick/noise sebelum invalidasi struktur).
-        entry_price = float(mss_candle['close'])
+        # ── Entry: Contrarian — fade the MSS ──
+        # MSS Long terbentuk → bet Short ke CHOCH (fake breakout).
+        # MSS Short terbentuk → bet Long ke CHOCH.
+        # TP = choch_level, SL disesuaikan supaya R:R = 1:5.
+        if choch_level is None:
+            i += 12; continue  # tidak ada CHOCH level → skip
 
-        df_bb = df_m5_full.iloc[max(0, mss_m5_idx - 20): mss_m5_idx + 1].reset_index(drop=True)
-        bb = find_breaker_block(df_bb, int(mss_candle['ts_ms']), stype)
+        entry_price  = float(mss_candle['close'])
+        trade_stype  = "Short" if stype == "Long" else "Long"
+        final_tp     = choch_level
 
-        if bb is not None:
-            sl_price = bb['sl']   # SL asli BB (bukan bb['entry'])
+        if trade_stype == "Short":
+            # Short: TP di bawah entry
+            if final_tp >= entry_price: i += 12; continue
+            tp_dist  = entry_price - final_tp
+            sl_price = entry_price + tp_dist / 5.0
         else:
-            # Fallback: low/high MSS candle
-            sl_price = float(mss_candle['low']) if stype == "Long" else float(mss_candle['high'])
+            # Long: TP di atas entry
+            if final_tp <= entry_price: i += 12; continue
+            tp_dist  = final_tp - entry_price
+            sl_price = entry_price - tp_dist / 5.0
 
-        # Validasi arah SL
-        if stype == "Long"  and entry_price <= sl_price: c_dir_fail += 1; i += 12; continue
-        if stype == "Short" and entry_price >= sl_price: c_dir_fail += 1; i += 12; continue
+        dist = tp_dist / 5.0   # = abs(entry - sl)
+        if dist == 0: i += 12; continue
 
-        dist = abs(entry_price - sl_price)
-        if dist == 0:
-            i += 12; continue
-
-        # Samakan dengan min_dist di simulate_trade agar TP tidak mismatch → SimSkip
+        # Enforce min_dist — kalau jarak terlalu kecil, perlebar SL dan scale TP
         min_dist = entry_price * MIN_DIST_PCT
         if dist < min_dist:
-            dist = min_dist
-            sl_price = (entry_price - dist) if stype == "Long" else (entry_price + dist)
+            dist     = min_dist
+            sl_price = (entry_price + dist) if trade_stype == "Short" else (entry_price - dist)
 
-        final_tp = entry_price + dist * 3 if stype == "Long" else entry_price - dist * 3
-
-        # ── Simulasi (dari mss_m5_idx — entry langsung saat MSS close) ──
+        # ── Simulasi (dari mss_m5_idx, arah dibalik) ──
         pnl, outcome, exit_p, exit_ts = simulate_trade(
-            df_m5_full, mss_m5_idx, entry_price, sl_price, final_tp, stype, balance
+            df_m5_full, mss_m5_idx, entry_price, sl_price, final_tp, trade_stype, balance
         )
         if outcome == 'skip':
             c_sim_skip += 1; i += 12; continue
@@ -792,25 +793,24 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
 
         # Setelah SL kena, apakah harga balik ke TP sebelum CHOCH?
         # Tiga hasil: sl_then_tp (TP duluan), sl_choch (CHOCH duluan), sl_drift (keduanya tidak)
+        # SL→TP DIAG — pakai arah trade_stype (bukan stype setup)
         sl_then_tp = False
         sl_choch   = False
         if outcome == 'sl':
             scan_end = min(in_trade_until_idx + 1 + 500, len(df_m5_full))
             for k in range(in_trade_until_idx + 1, scan_end):
                 ck      = df_m5_full.iloc[k]
-                close_k = float(ck['close'])
                 low_k   = float(ck['low'])
                 high_k  = float(ck['high'])
-                if stype == "Long":
-                    if choch_level and close_k < choch_level: sl_choch = True; break
-                    if high_k >= final_tp: sl_then_tp = True; break
+                if trade_stype == "Short":
+                    if low_k  <= final_tp: sl_then_tp = True; break
                 else:
-                    if choch_level and close_k > choch_level: sl_choch = True; break
-                    if low_k <= final_tp: sl_then_tp = True; break
+                    if high_k >= final_tp: sl_then_tp = True; break
 
         trades.append({
             'symbol'         : symbol,
-            'type'           : stype,
+            'type'           : trade_stype,
+            'setup_type'     : stype,   # arah setup asli (MSS yang di-fade)
             'entry_ts'       : df_m5_full.iloc[mss_m5_idx]['ts'],
             'exit_ts'        : exit_ts,
             'entry'          : round(entry_price, 8),
@@ -825,7 +825,6 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
             'mss_body_ratio' : _mss_body_ratio,
             'vol_ratio'      : _vol_ratio,
             'atr_ratio'      : _atr_ratio,
-            'entry_type'     : 'breaker' if bb is not None else 'fvg',
             'sl_dist_pct'    : round(dist / entry_price, 6) if entry_price > 0 else 0.0,
             'sl_then_tp'     : sl_then_tp,
             'sl_choch'       : sl_choch,
