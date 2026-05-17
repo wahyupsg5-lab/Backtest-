@@ -746,29 +746,33 @@ def backtest_coin(symbol, df_m5_full, initial_balance):
             #     i += 12; continue
 
         # ── Entry: Contrarian — fade the MSS ──
-        # MSS Long terbentuk → bet Short ke CHOCH (fake breakout).
-        # MSS Short terbentuk → bet Long ke CHOCH.
-        # TP = choch_level, SL disesuaikan supaya R:R = 1:5.
-        if choch_level is None:
-            i += 12; continue  # tidak ada CHOCH level → skip
+        # Entry = MSS close. SL = mirror BB di sisi lain (1:1 dari BB).
+        # TP = 5× jarak SL (R:R 1:5).
+        entry_price = float(mss_candle['close'])
+        trade_stype = "Short" if stype == "Long" else "Long"
 
-        entry_price  = float(mss_candle['close'])
-        trade_stype  = "Short" if stype == "Long" else "Long"
-        final_tp     = choch_level
+        df_bb = df_m5_full.iloc[max(0, mss_m5_idx - 20): mss_m5_idx + 1].reset_index(drop=True)
+        bb    = find_breaker_block(df_bb, int(mss_candle['ts_ms']), stype)
+
+        if bb is not None:
+            dist = abs(entry_price - bb['entry'])  # impulse MSS close → BB
+        else:
+            # Fallback: pakai body MSS candle sebagai referensi jarak
+            dist = abs(entry_price - float(mss_candle['open']))
+
+        if dist == 0: i += 12; continue
+
+        # Enforce min dist
+        min_dist = entry_price * MIN_DIST_PCT
+        if dist < min_dist:
+            dist = min_dist
 
         if trade_stype == "Short":
-            # Short: TP di bawah entry
-            if final_tp >= entry_price: i += 12; continue
-            tp_dist  = entry_price - final_tp
-            sl_price = entry_price + tp_dist / 3.0
+            sl_price = entry_price + dist         # SL di atas entry (mirror BB)
+            final_tp = entry_price - dist * 5     # TP 5R ke bawah
         else:
-            # Long: TP di atas entry
-            if final_tp <= entry_price: i += 12; continue
-            tp_dist  = final_tp - entry_price
-            sl_price = entry_price - tp_dist / 3.0
-
-        dist = tp_dist / 3.0   # = abs(entry - sl)
-        if dist == 0: i += 12; continue
+            sl_price = entry_price - dist         # SL di bawah entry (mirror BB)
+            final_tp = entry_price + dist * 5     # TP 5R ke atas
 
         # ── Simulasi (dari mss_m5_idx, arah dibalik) ──
         pnl, outcome, exit_p, exit_ts = simulate_trade(
