@@ -28,6 +28,7 @@ ENTRY_MODE   = 'bb_sl'  # 'bb_sl'|'bb_entry'|'bb_entry_imm'|'market'|'fvg_touch'
 SL_MULT      = 2.0      # SL = mss_close ± dist * SL_MULT
 TP_MULT      = 2.0      # TP = mss_close ± dist * TP_MULT
 TIME_FILTER  = 0        # max candles FVG→MSS (0 = disabled)
+TRAIL_STOP   = 0.0      # trailing SL step dalam R (0 = disabled, pakai fixed TP)
 
 DATA_DIR = "/home/claude/fulldata"
 FILES = {
@@ -463,12 +464,19 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance, _skip_reason
     total_fee = 2 * notional * TAKER_FEE
 
     # Walk forward candle-by-candle
-    future = df_m5.iloc[entry_idx+1:entry_idx+1000]  # max 1000 candle (~83 jam)
+    future   = df_m5.iloc[entry_idx+1:entry_idx+1000]  # max 1000 candle (~83 jam)
+    trail_sl = sl   # trailing SL dimulai dari SL awal
+    peak     = entry
     for _, c in future.iterrows():
         h, l = float(c['high']), float(c['low'])
         if stype == "Long":
-            if l <= sl:
-                exit_p = sl
+            # Update trailing SL jika TRAIL_STOP aktif
+            if TRAIL_STOP > 0 and h > peak:
+                peak     = h
+                trail_sl = max(trail_sl, peak - TRAIL_STOP * dist)
+            cur_sl = trail_sl if TRAIL_STOP > 0 else sl
+            if l <= cur_sl:
+                exit_p = cur_sl
                 pnl    = (exit_p - entry) * qty - total_fee
                 return pnl, 'sl', exit_p, c['ts']
             if h >= tp:
@@ -476,8 +484,12 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance, _skip_reason
                 pnl    = (exit_p - entry) * qty - total_fee
                 return pnl, 'tp', exit_p, c['ts']
         else:
-            if h >= sl:
-                exit_p = sl
+            if TRAIL_STOP > 0 and l < peak:
+                peak     = l
+                trail_sl = min(trail_sl, peak + TRAIL_STOP * dist)
+            cur_sl = trail_sl if TRAIL_STOP > 0 else sl
+            if h >= cur_sl:
+                exit_p = cur_sl
                 pnl    = (entry - exit_p) * qty - total_fee
                 return pnl, 'sl', exit_p, c['ts']
             if l <= tp:
