@@ -24,7 +24,7 @@ MIN_RR          = 1.5   # 1:2 = 2.0, 1:3 = 3.0 — cukup untuk contrarian
 MIN_DIST_PCT    = 0.005     # minimum SL distance 0.5%
 
 # ── Test variant config (override dari luar untuk testing) ──
-ENTRY_MODE   = 'bb_sl'  # 'bb_sl'|'bb_entry'|'bb_entry_imm'|'market'|'fvg_touch'|'idm_touch'
+ENTRY_MODE   = 'bb_sl'  # 'bb_sl'|'bb_entry'|'bb_entry_imm'|'market'|'fvg_touch'|'idm_touch'|'fvg_confirm'|'fvg_deep'|'fvg_dip'
 SL_MULT      = 2.0      # SL = mss_close ± dist * SL_MULT
 TP_MULT      = 2.0      # TP = mss_close ± dist * TP_MULT
 TIME_FILTER  = 0        # max candles FVG→MSS (0 = disabled)
@@ -728,6 +728,65 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                 _entry_price = conf_close
                 _sl_price    = sl_nat
                 _final_tp    = conf_close + d * TP_MULT if stype == "Long" else conf_close - d * TP_MULT
+                _dist        = d
+            else:
+                c_dir_fail += 1; i += 12; continue
+
+        # ════════════════════════════════════════════════════════
+        # OPSI B3: fvg_dip — tunggu harga DIP ke FVG edge dulu
+        # sebelum +1R bounce. Entry limit di FVG bottom/top.
+        # SL = entry - SL_MULT*sl_dist, TP = ep + TP_MULT*sl_dist
+        # ════════════════════════════════════════════════════════
+        elif ENTRY_MODE == 'fvg_dip':
+            ep = float(df_m5_full.iloc[found_fvg_idx]['close'])   # titik 0
+            if stype == "Long":
+                sl_dist    = ep - float(used_fvg['bottom'])
+                dip_lvl    = float(used_fvg['bottom'])             # -1R dari titik 0
+                bounce_lvl = ep + sl_dist                          # +1R dari titik 0
+            else:
+                sl_dist    = float(used_fvg['top']) - ep
+                dip_lvl    = float(used_fvg['top'])                # -1R untuk Short
+                bounce_lvl = ep - sl_dist                          # +1R untuk Short
+
+            if sl_dist <= 0 or sl_dist < ep * MIN_DIST_PCT:
+                c_dir_fail += 1; i += 12; continue
+
+            # Scan forward: cari dip ke FVG edge sebelum +1R — max 48 jam
+            dip_idx    = None
+            bounce_idx = None
+            scan_end   = min(total - 1, found_fvg_idx + 576)
+            for k in range(found_fvg_idx + 1, scan_end + 1):
+                ck_h = float(df_m5_full.iloc[k]['high'])
+                ck_l = float(df_m5_full.iloc[k]['low'])
+                if stype == "Long":
+                    if dip_idx    is None and ck_l <= dip_lvl:    dip_idx    = k
+                    if bounce_idx is None and ck_h >= bounce_lvl: bounce_idx = k
+                else:
+                    if dip_idx    is None and ck_h >= dip_lvl:    dip_idx    = k
+                    if bounce_idx is None and ck_l <= bounce_lvl: bounce_idx = k
+                if dip_idx is not None and bounce_idx is not None:
+                    break
+
+            # Skip jika bounce duluan atau tidak ada dip
+            if dip_idx is None or (bounce_idx is not None and bounce_idx < dip_idx):
+                c_dir_fail += 1; i += 12; continue
+
+            # Entry limit di FVG edge (titik -1R)
+            if stype == "Long":
+                e_entry = dip_lvl
+                e_sl    = dip_lvl - SL_MULT * sl_dist
+                e_tp    = ep      + TP_MULT * sl_dist
+            else:
+                e_entry = dip_lvl
+                e_sl    = dip_lvl + SL_MULT * sl_dist
+                e_tp    = ep      - TP_MULT * sl_dist
+
+            d = abs(e_entry - e_sl)
+            if d > 0 and d >= e_entry * MIN_DIST_PCT:
+                _entry_idx   = dip_idx
+                _entry_price = e_entry
+                _sl_price    = e_sl
+                _final_tp    = e_tp
                 _dist        = d
             else:
                 c_dir_fail += 1; i += 12; continue
