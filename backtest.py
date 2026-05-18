@@ -24,9 +24,10 @@ MIN_RR          = 1.5   # 1:2 = 2.0, 1:3 = 3.0 — cukup untuk contrarian
 MIN_DIST_PCT    = 0.005     # minimum SL distance 0.5%
 
 # ── Test variant config (override dari luar untuk testing) ──
-ENTRY_MODE = 'bb_sl'   # 'bb_sl' | 'bb_entry'
-SL_MULT    = 2.0        # SL = mss_close ± dist * SL_MULT
-TP_MULT    = 2.0        # TP = mss_close ± dist * TP_MULT
+ENTRY_MODE   = 'bb_sl'  # 'bb_sl'|'bb_entry'|'bb_entry_imm'|'market'|'fvg_touch'|'idm_touch'
+SL_MULT      = 2.0      # SL = mss_close ± dist * SL_MULT
+TP_MULT      = 2.0      # TP = mss_close ± dist * TP_MULT
+TIME_FILTER  = 0        # max candles FVG→MSS (0 = disabled)
 
 DATA_DIR = "/home/claude/fulldata"
 FILES = {
@@ -627,7 +628,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
             if found_fvg_idx >= 0: break
 
         if found_fvg_idx < 0:
-            i += 12; continue  # tidak ada touch H1 ini → lanjut 1 jam saja
+            i += 12; continue
 
         # LOG event untuk analisis eksternal
         if _fvg_events is not None:
@@ -639,247 +640,262 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                 'choch'  : active_choch,
             })
 
-        # ── FVG touch ditemukan → lanjut IDM, reset active state ──
         stype       = active_stype
         choch_level = active_choch
         active_bos_key = None; active_gaps = []
         active_choch   = None; active_stype = None
 
-        # ── IDM M5 setelah FVG touch (max 24 jam) ──
-        idm_end = min(total - 1, found_fvg_idx + 12 * 48)  # diperlebar: 48 jam
-        df_m5_idm = df_m5_full.iloc[found_fvg_idx: idm_end].reset_index(drop=True)
-        if len(df_m5_idm) < 5:
-            i += 12; continue
+        # ── Shared entry variables ──
+        _entry_idx   = None
+        _entry_price = None
+        _sl_price    = None
+        _final_tp    = None
+        _dist        = None
+        _trigger_str = ENTRY_MODE
+        _depth_val   = 0
+        _mss_body_ratio = 0.0; _vol_ratio = 0.0; _atr_ratio = 0.0
 
-        m5_state = replay_m5(df_m5_idm, stype)
-        if m5_state['phase'] != 'IDM_TOUCHED':
-            i += 12 * 24; continue
-
-        freeze_high = m5_state['freeze_high']
-        freeze_low  = m5_state['freeze_low']
-        freeze_ts   = m5_state['freeze_ts']
-
-        # Temukan index M5 dari freeze_ts
-        freeze_mask = df_m5_full['ts_ms'] == freeze_ts
-        if not freeze_mask.any():
-            i += 12; continue
-        freeze_m5_idx = df_m5_full[freeze_mask].index[0]
-
-        # ── BOS/Sweep M5 (max 12 jam setelah IDM) ──
-        bos_end = min(total - 1, freeze_m5_idx + 12 * 12)
-        df_bos  = df_m5_full.iloc[freeze_m5_idx: bos_end].reset_index(drop=True)
-        result  = check_bos_or_sweep(df_bos, freeze_high, freeze_low, freeze_ts, stype)
-        if result['trigger'] is None:
-            i += 12 * 12; continue
-
-        trigger_ts = result['ts']
-        new_fh = result['nfh']
-        new_fl = result['nfl']
-
-        # Temukan index M5 dari trigger_ts
-        trig_mask = df_m5_full['ts_ms'] == trigger_ts
-        if not trig_mask.any():
-            i += 12; continue
-        trigger_m5_idx = df_m5_full[trig_mask].index[0]
-
-        # ── Recursive IDM loop setelah BOS pertama ──
-        # IDM#1 → mandatory BOS → IDM#n (dalam BOS) → WAIT_MSS
-        # WAIT_MSS: MSS (close balik) = entry | BOS lagi = cari IDM#n+1 (loop)
-        mss_candle = None
-        mss_m5_idx = -1
-        anchor_idx = trigger_m5_idx
-
-        for _depth in range(8):
-            idm_in_end  = min(total - 1, anchor_idx + 12 * 48)
-            df_m5_inner = df_m5_full.iloc[anchor_idx:idm_in_end].reset_index(drop=True)
-            if len(df_m5_inner) < 5:
-                break
-
-            m5_inner = replay_m5(df_m5_inner, stype)
-            if m5_inner['phase'] != 'IDM_TOUCHED':
-                break
-
-            inner_fh  = m5_inner['freeze_high']
-            inner_fl  = m5_inner['freeze_low']
-            inner_fts = m5_inner['freeze_ts']
-
-            inner_mask = df_m5_full['ts_ms'] == inner_fts
-            if not inner_mask.any():
-                break
-            inner_m5_idx = int(df_m5_full[inner_mask].index[0])
-
-            # WAIT_MSS: scan close — MSS (balik arah) atau BOS lagi (lanjut tren)
-            wait_end = min(total - 1, inner_m5_idx + 12 * 24)
-            df_wait  = df_m5_full.iloc[inner_m5_idx:wait_end]
-            c_arr    = df_wait['close'].to_numpy(float)
-
+        # ════════════════════════════════════════════════════════
+        # OPSI B: Entry langsung di FVG touch
+        # ════════════════════════════════════════════════════════
+        if ENTRY_MODE == 'fvg_touch':
+            ep = float(df_m5_full.iloc[found_fvg_idx]['close'])
             if stype == "Long":
-                mss_hits = np.where(c_arr > inner_fh)[0]
-                bos_hits = np.where(c_arr < inner_fl)[0]
+                sl_nat = float(used_fvg['bottom'])
+                d = ep - sl_nat
             else:
-                mss_hits = np.where(c_arr < inner_fl)[0]
-                bos_hits = np.where(c_arr > inner_fh)[0]
-
-            first_mss = int(mss_hits[0]) if len(mss_hits) else len(c_arr)
-            first_bos = int(bos_hits[0]) if len(bos_hits) else len(c_arr)
-
-            if len(mss_hits) and first_mss <= first_bos:
-                mss_candle = df_wait.iloc[first_mss]
-                mss_m5_idx = inner_m5_idx + first_mss
-                break
-            elif len(bos_hits) and first_bos < first_mss:
-                anchor_idx = inner_m5_idx + first_bos   # BOS lagi → cari IDM baru
+                sl_nat = float(used_fvg['top'])
+                d = sl_nat - ep
+            if d > 0 and d >= ep * MIN_DIST_PCT:
+                _entry_idx   = found_fvg_idx
+                _entry_price = ep
+                _sl_price    = sl_nat
+                _final_tp    = ep + d * TP_MULT if stype == "Long" else ep - d * TP_MULT
+                _dist        = d
             else:
-                break  # timeout dalam WAIT_MSS
+                c_dir_fail += 1; i += 12; continue
 
-        if mss_candle is None or mss_m5_idx < 0:
-            i += 12 * 6; continue
-
-        c_mss_found += 1
-
-        # Filter MSS strength (DISABLED — sinkron live bot)
-        mss_body  = abs(float(mss_candle['close']) - float(mss_candle['open']))
-        mss_range = abs(float(mss_candle['high'])  - float(mss_candle['low']))
-        # if mss_range > 0 and mss_body / mss_range < 0.30:
-        #     i += 12; continue
-        _mss_body_ratio = round(mss_body / mss_range, 4) if mss_range > 0 else 0.0
-
-        # Filter volume (DISABLED — sinkron live bot)
-        vol_window = df_m5_full.iloc[max(0, mss_m5_idx - 19): mss_m5_idx + 1]
-        avg_vol = vol_window['vol'].mean()
-        _vol_ratio = round(float(mss_candle['vol']) / avg_vol, 4) if avg_vol > 0 else 0.0
-        # if avg_vol > 0 and float(mss_candle['vol']) / avg_vol < 0.25:
-        #     i += 12; continue
-
-        # Filter ATR (DISABLED — sinkron live bot)
-        atr_thresh = ATR_THRESHOLD.get(symbol, 0.0035)
-        atr_window = df_m5_full.iloc[max(0, mss_m5_idx - 19): mss_m5_idx + 1]
-        _atr_ratio = 0.0
-        if len(atr_window) >= 5:
-            h = atr_window['high']; l = atr_window['low']
-            pc = atr_window['close'].shift(1)
-            tr = pd.concat([h-l, (h-pc).abs(), (l-pc).abs()], axis=1).max(axis=1)
-            atr_val = tr.mean()
-            ref_price = float(mss_candle['close'])
-            if atr_thresh > 0 and ref_price > 0:
-                _atr_ratio = round((atr_val / ref_price) / atr_thresh, 3)
-            # if ref_price > 0 and (atr_val / ref_price) < atr_thresh:
-            #     i += 12; continue
-
-        # ── Entry: Limit di bb['sl'], tunggu koreksi ──
-        # 1R = dist = abs(MSS_close - bb['sl']).
-        # Entry = bb['sl']. SL & TP diukur dari MSS_close (bukan entry).
-        # Long : SL = mss_close - 5R, TP = mss_close + 5R
-        # Short: SL = mss_close + 5R, TP = mss_close - 5R
-        mss_close   = float(mss_candle['close'])
-        trade_stype = stype
-
-        df_bb = df_m5_full.iloc[max(0, mss_m5_idx - 20): mss_m5_idx + 1].reset_index(drop=True)
-        bb    = find_breaker_block(df_bb, int(mss_candle['ts_ms']), stype)
-        if bb is None: c_dir_fail += 1; i += 12; continue
-
-        limit_entry = bb['sl'] if ENTRY_MODE == 'bb_sl' else bb['entry']
-        dist        = abs(mss_close - limit_entry) # 1R reference
-        if dist == 0: i += 12; continue
-
-        min_dist = limit_entry * MIN_DIST_PCT
-        if dist < min_dist: c_dir_fail += 1; i += 12; continue
-
-        if stype == "Long":
-            sl_price = mss_close - dist * SL_MULT
-            final_tp = mss_close + dist * TP_MULT
         else:
-            sl_price = mss_close + dist * SL_MULT
-            final_tp = mss_close - dist * TP_MULT
+            # ════════════════════════════════════════════════════
+            # IDM M5 setelah FVG touch (max 48 jam)
+            # ════════════════════════════════════════════════════
+            idm_end   = min(total - 1, found_fvg_idx + 12 * 48)
+            df_m5_idm = df_m5_full.iloc[found_fvg_idx: idm_end].reset_index(drop=True)
+            if len(df_m5_idm) < 5: i += 12; continue
 
-        # Fill logic tergantung ENTRY_MODE
-        if ENTRY_MODE == 'market':
-            # Market entry langsung di MSS close, no limit scan
-            fill_idx   = mss_m5_idx
-            entry_price = mss_close
-        elif ENTRY_MODE in ('bb_entry_imm',):
-            # Immediate fill di bb['entry'] saat MSS fires, no scan
-            fill_idx   = mss_m5_idx
-            entry_price = limit_entry
-        else:
-            # Limit order: scan forward untuk pullback ke limit_entry
-            FILL_TIMEOUT = 60
-            fill_idx = None
-            for j in range(mss_m5_idx + 1, min(mss_m5_idx + 1 + FILL_TIMEOUT, len(df_m5_full))):
-                cj = df_m5_full.iloc[j]
+            m5_state = replay_m5(df_m5_idm, stype)
+            if m5_state['phase'] != 'IDM_TOUCHED': i += 12 * 24; continue
+
+            freeze_high = m5_state['freeze_high']
+            freeze_low  = m5_state['freeze_low']
+            freeze_ts   = m5_state['freeze_ts']
+
+            freeze_mask = df_m5_full['ts_ms'] == freeze_ts
+            if not freeze_mask.any(): i += 12; continue
+            freeze_m5_idx = df_m5_full[freeze_mask].index[0]
+
+            # ════════════════════════════════════════════════════
+            # OPSI A: Entry langsung di IDM touch
+            # ════════════════════════════════════════════════════
+            if ENTRY_MODE == 'idm_touch':
+                ep = float(df_m5_full.iloc[freeze_m5_idx]['close'])
                 if stype == "Long":
-                    if float(cj['high']) >= final_tp:   break
-                    if float(cj['low'])  <= limit_entry: fill_idx = j; break
+                    sl_nat = freeze_low
+                    d = ep - sl_nat
                 else:
-                    if float(cj['low'])  <= final_tp:   break
-                    if float(cj['high']) >= limit_entry: fill_idx = j; break
-            if fill_idx is None: c_dir_fail += 1; i += 12; continue
-            entry_price = limit_entry
+                    sl_nat = freeze_high
+                    d = sl_nat - ep
+                if d > 0 and d >= ep * MIN_DIST_PCT:
+                    _entry_idx   = freeze_m5_idx
+                    _entry_price = ep
+                    _sl_price    = sl_nat
+                    _final_tp    = ep + d * TP_MULT if stype == "Long" else ep - d * TP_MULT
+                    _dist        = d
+                else:
+                    c_dir_fail += 1; i += 12; continue
 
-        # ── Simulasi dari fill_idx ──
+            else:
+                # ════════════════════════════════════════════════
+                # BOS/Sweep M5 → Recursive IDM → MSS
+                # ════════════════════════════════════════════════
+                bos_end = min(total - 1, freeze_m5_idx + 12 * 12)
+                df_bos  = df_m5_full.iloc[freeze_m5_idx: bos_end].reset_index(drop=True)
+                result  = check_bos_or_sweep(df_bos, freeze_high, freeze_low, freeze_ts, stype)
+                if result['trigger'] is None: i += 12 * 12; continue
+
+                trigger_ts = result['ts']
+                trig_mask  = df_m5_full['ts_ms'] == trigger_ts
+                if not trig_mask.any(): i += 12; continue
+                trigger_m5_idx = df_m5_full[trig_mask].index[0]
+
+                mss_candle = None; mss_m5_idx = -1
+                anchor_idx = trigger_m5_idx
+
+                for _depth_val in range(8):
+                    idm_in_end  = min(total - 1, anchor_idx + 12 * 48)
+                    df_m5_inner = df_m5_full.iloc[anchor_idx:idm_in_end].reset_index(drop=True)
+                    if len(df_m5_inner) < 5: break
+
+                    m5_inner = replay_m5(df_m5_inner, stype)
+                    if m5_inner['phase'] != 'IDM_TOUCHED': break
+
+                    inner_fh  = m5_inner['freeze_high']
+                    inner_fl  = m5_inner['freeze_low']
+                    inner_fts = m5_inner['freeze_ts']
+
+                    inner_mask = df_m5_full['ts_ms'] == inner_fts
+                    if not inner_mask.any(): break
+                    inner_m5_idx = int(df_m5_full[inner_mask].index[0])
+
+                    wait_end = min(total - 1, inner_m5_idx + 12 * 24)
+                    df_wait  = df_m5_full.iloc[inner_m5_idx:wait_end]
+                    c_arr    = df_wait['close'].to_numpy(float)
+
+                    if stype == "Long":
+                        mss_hits = np.where(c_arr > inner_fh)[0]
+                        bos_hits = np.where(c_arr < inner_fl)[0]
+                    else:
+                        mss_hits = np.where(c_arr < inner_fl)[0]
+                        bos_hits = np.where(c_arr > inner_fh)[0]
+
+                    first_mss = int(mss_hits[0]) if len(mss_hits) else len(c_arr)
+                    first_bos = int(bos_hits[0]) if len(bos_hits) else len(c_arr)
+
+                    if len(mss_hits) and first_mss <= first_bos:
+                        mss_candle = df_wait.iloc[first_mss]
+                        mss_m5_idx = inner_m5_idx + first_mss
+                        break
+                    elif len(bos_hits) and first_bos < first_mss:
+                        anchor_idx = inner_m5_idx + first_bos
+                    else:
+                        break
+
+                if mss_candle is None or mss_m5_idx < 0: i += 12 * 6; continue
+
+                # OPSI C: Time filter — MSS harus dalam TIME_FILTER candle dari FVG
+                if TIME_FILTER > 0 and mss_m5_idx - found_fvg_idx > TIME_FILTER:
+                    c_dir_fail += 1; i += 12; continue
+
+                c_mss_found += 1
+
+                mss_body  = abs(float(mss_candle['close']) - float(mss_candle['open']))
+                mss_range = abs(float(mss_candle['high'])  - float(mss_candle['low']))
+                _mss_body_ratio = round(mss_body / mss_range, 4) if mss_range > 0 else 0.0
+
+                vol_window = df_m5_full.iloc[max(0, mss_m5_idx - 19): mss_m5_idx + 1]
+                avg_vol    = vol_window['vol'].mean()
+                _vol_ratio = round(float(mss_candle['vol']) / avg_vol, 4) if avg_vol > 0 else 0.0
+
+                atr_thresh = ATR_THRESHOLD.get(symbol, 0.0035)
+                atr_window = df_m5_full.iloc[max(0, mss_m5_idx - 19): mss_m5_idx + 1]
+                _atr_ratio = 0.0
+                if len(atr_window) >= 5:
+                    h_ = atr_window['high']; l_ = atr_window['low']
+                    pc_ = atr_window['close'].shift(1)
+                    tr_ = pd.concat([h_-l_, (h_-pc_).abs(), (l_-pc_).abs()], axis=1).max(axis=1)
+                    atr_val   = tr_.mean()
+                    ref_price = float(mss_candle['close'])
+                    if atr_thresh > 0 and ref_price > 0:
+                        _atr_ratio = round((atr_val / ref_price) / atr_thresh, 3)
+
+                mss_close   = float(mss_candle['close'])
+                _trigger_str = result['trigger']
+
+                df_bb = df_m5_full.iloc[max(0, mss_m5_idx - 20): mss_m5_idx + 1].reset_index(drop=True)
+                bb    = find_breaker_block(df_bb, int(mss_candle['ts_ms']), stype)
+                if bb is None: c_dir_fail += 1; i += 12; continue
+
+                limit_entry = bb['sl'] if ENTRY_MODE == 'bb_sl' else bb['entry']
+                dist_ref    = abs(mss_close - limit_entry)
+                if dist_ref == 0: i += 12; continue
+                if dist_ref < limit_entry * MIN_DIST_PCT: c_dir_fail += 1; i += 12; continue
+
+                if stype == "Long":
+                    sl_mss = mss_close - dist_ref * SL_MULT
+                    tp_mss = mss_close + dist_ref * TP_MULT
+                else:
+                    sl_mss = mss_close + dist_ref * SL_MULT
+                    tp_mss = mss_close - dist_ref * TP_MULT
+
+                if ENTRY_MODE == 'market':
+                    _entry_idx = mss_m5_idx; _entry_price = mss_close
+                elif ENTRY_MODE == 'bb_entry_imm':
+                    _entry_idx = mss_m5_idx; _entry_price = limit_entry
+                else:
+                    FILL_TIMEOUT = 60; fill_idx = None
+                    for j in range(mss_m5_idx + 1, min(mss_m5_idx + 1 + FILL_TIMEOUT, len(df_m5_full))):
+                        cj = df_m5_full.iloc[j]
+                        if stype == "Long":
+                            if float(cj['high']) >= tp_mss: break
+                            if float(cj['low'])  <= limit_entry: fill_idx = j; break
+                        else:
+                            if float(cj['low'])  <= tp_mss: break
+                            if float(cj['high']) >= limit_entry: fill_idx = j; break
+                    if fill_idx is None: c_dir_fail += 1; i += 12; continue
+                    _entry_idx = fill_idx; _entry_price = limit_entry
+
+                _sl_price = sl_mss; _final_tp = tp_mss; _dist = dist_ref
+
+        # ════════════════════════════════════════════════════════
+        # Eksekusi trade (semua mode)
+        # ════════════════════════════════════════════════════════
+        if _entry_idx is None: i += 12; continue
+
         pnl, outcome, exit_p, exit_ts = simulate_trade(
-            df_m5_full, fill_idx, entry_price, sl_price, final_tp, trade_stype, balance,
+            df_m5_full, _entry_idx, _entry_price, _sl_price, _final_tp, stype, balance,
             _skip_reasons=c_simskip_reasons
         )
         if outcome == 'skip':
-            c_sim_skip += 1; i += 12; continue
+            c_sim_skip += 1; i = _entry_idx + 1; continue
 
         balance += pnl
 
-        # Cari exit index dari fill_idx
         if exit_ts is not None:
             exit_rows = df_m5_full[df_m5_full['ts'] == exit_ts].index
-            in_trade_until_idx = int(exit_rows[0]) if len(exit_rows) else fill_idx + 300
+            in_trade_until_idx = int(exit_rows[0]) if len(exit_rows) else _entry_idx + 300
         else:
-            in_trade_until_idx = fill_idx + 300
+            in_trade_until_idx = _entry_idx + 300
 
         # SL→TP DIAG + MAE
-        sl_then_tp = False
-        sl_choch   = False
-        mae_r      = 0.0
-        if outcome == 'sl':
-            scan_end   = min(in_trade_until_idx + 1 + 500, len(df_m5_full))
+        sl_then_tp = False; mae_r = 0.0
+        if outcome == 'sl' and _dist and _dist > 0:
+            scan_end = min(in_trade_until_idx + 1 + 500, len(df_m5_full))
             tp_hit_idx = None
             for k in range(in_trade_until_idx + 1, scan_end):
-                ck     = df_m5_full.iloc[k]
-                low_k  = float(ck['low'])
-                high_k = float(ck['high'])
-                if trade_stype == "Long":
-                    if high_k >= final_tp: sl_then_tp = True; tp_hit_idx = k; break
+                ck = df_m5_full.iloc[k]
+                if stype == "Long":
+                    if float(ck['high']) >= _final_tp: sl_then_tp = True; tp_hit_idx = k; break
                 else:
-                    if low_k  <= final_tp: sl_then_tp = True; tp_hit_idx = k; break
-
-            if sl_then_tp and tp_hit_idx is not None and dist > 0:
-                window = df_m5_full.iloc[fill_idx : tp_hit_idx + 1]
-                if trade_stype == "Long":
-                    mae_price = float(window['low'].min())
-                    mae_r = (entry_price - mae_price) / dist
+                    if float(ck['low'])  <= _final_tp: sl_then_tp = True; tp_hit_idx = k; break
+            if sl_then_tp and tp_hit_idx is not None:
+                win = df_m5_full.iloc[_entry_idx : tp_hit_idx + 1]
+                if stype == "Long":
+                    mae_r = (_entry_price - float(win['low'].min()))  / _dist
                 else:
-                    mae_price = float(window['high'].max())
-                    mae_r = (mae_price - entry_price) / dist
+                    mae_r = (float(win['high'].max()) - _entry_price) / _dist
 
         trades.append({
             'symbol'         : symbol,
-            'type'           : trade_stype,
+            'type'           : stype,
             'setup_type'     : stype,
-            'entry_ts'       : df_m5_full.iloc[fill_idx]['ts'],
+            'entry_ts'       : df_m5_full.iloc[_entry_idx]['ts'],
             'exit_ts'        : exit_ts,
-            'entry'          : round(entry_price, 8),
-            'sl'             : round(sl_price, 8),
-            'tp'             : round(final_tp, 8),
+            'entry'          : round(_entry_price, 8),
+            'sl'             : round(_sl_price, 8),
+            'tp'             : round(_final_tp, 8),
             'exit_price'     : round(exit_p, 8),
             'outcome'        : outcome,
             'pnl_usd'        : round(pnl, 4),
             'balance'        : round(balance, 4),
-            'trigger'        : result['trigger'],
-            'idm_depth'      : _depth,
+            'trigger'        : _trigger_str,
+            'idm_depth'      : _depth_val,
             'mss_body_ratio' : _mss_body_ratio,
             'vol_ratio'      : _vol_ratio,
             'atr_ratio'      : _atr_ratio,
-            'sl_dist_pct'    : round(dist / entry_price, 6) if entry_price > 0 else 0.0,
+            'sl_dist_pct'    : round(_dist / _entry_price, 6) if _entry_price > 0 else 0.0,
             'sl_then_tp'     : sl_then_tp,
-            'sl_choch'       : sl_choch,
-            'mae_r'          : round(mae_r, 2),   # R adverse sebelum balik ke TP (0 jika tidak sl_then_tp)
+            'sl_choch'       : False,
+            'mae_r'          : round(mae_r, 2),
         })
 
         i = in_trade_until_idx + 1
