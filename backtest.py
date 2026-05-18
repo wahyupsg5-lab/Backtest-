@@ -560,6 +560,11 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance, _skip_reason
     else:
         pnl = (entry - exit_p) * qty - total_fee
 
+    # Trail exit yang menguntungkan → outcome 'tp' (win), bukan 'sl'
+    if TRAIL_STOP > 0 and outcome == 'sl':
+        if (stype == "Long" and exit_p > entry) or (stype == "Short" and exit_p < entry):
+            outcome = 'tp'
+
     if _extra_out is not None:
         _extra_out['max_float_r']   = max_float / dist if dist > 0 else 0.0
         _extra_out['trail_engaged'] = trail_engaged
@@ -1260,8 +1265,8 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
         # Kondisi 1: immediate SL (harga langsung kena SL, tidak ada float profit)
         # Kondisi 2: trailing SL terpicu setelah mencapai BE atau lebih
         # ════════════════════════════════════════════════════════
-        if TRAIL_STOP > 0 and ENTRY_MODE == 'fvg_strong' and outcome == 'sl':
-            _imm_sl    = _extra.get('max_float_r', 1.0) < 0.1   # tidak ada float profit
+        if TRAIL_STOP > 0 and ENTRY_MODE == 'fvg_strong':
+            _imm_sl    = outcome == 'sl' and _extra.get('max_float_r', 1.0) < 0.1
             _trail_hit = _extra.get('trail_engaged', False)       # trailing SL aktif di BE+
             if _imm_sl or _trail_hit:
                 _rev_type     = "Short" if _trade_stype == "Long" else "Long"
