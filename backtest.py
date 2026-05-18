@@ -24,7 +24,7 @@ MIN_RR          = 1.5   # 1:2 = 2.0, 1:3 = 3.0 — cukup untuk contrarian
 MIN_DIST_PCT    = 0.005     # minimum SL distance 0.5%
 
 # ── Test variant config (override dari luar untuk testing) ──
-ENTRY_MODE   = 'bb_sl'  # 'bb_sl'|'bb_entry'|'bb_entry_imm'|'market'|'fvg_touch'|'idm_touch'|'fvg_confirm'|'fvg_deep'|'fvg_dip'
+ENTRY_MODE   = 'bb_sl'  # 'bb_sl'|'bb_entry'|'bb_entry_imm'|'market'|'fvg_touch'|'fvg_touch_rev'|'idm_touch'|'fvg_confirm'|'fvg_deep'|'fvg_dip'
 SL_MULT      = 2.0      # SL = mss_close ± dist * SL_MULT
 TP_MULT      = 2.0      # TP = mss_close ± dist * TP_MULT
 TIME_FILTER  = 0        # max candles FVG→MSS (0 = disabled)
@@ -672,12 +672,13 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
         _dist        = None
         _trigger_str = ENTRY_MODE
         _depth_val   = 0
+        _trade_stype = stype   # arah trade aktual — bisa di-flip oleh fvg_touch_rev
         _mss_body_ratio = 0.0; _vol_ratio = 0.0; _atr_ratio = 0.0
 
         # ════════════════════════════════════════════════════════
         # OPSI B: Entry langsung di FVG touch
         # ════════════════════════════════════════════════════════
-        if ENTRY_MODE in ('fvg_touch', 'fvg_deep'):
+        if ENTRY_MODE in ('fvg_touch', 'fvg_deep', 'fvg_touch_rev'):
             ep = float(df_m5_full.iloc[found_fvg_idx]['close'])
             if stype == "Long":
                 sl_nat = float(used_fvg['bottom'])
@@ -692,14 +693,15 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                     c_dir_fail += 1; i += 12; continue
                 if stype == "Short" and ep < fvg_mid:
                     c_dir_fail += 1; i += 12; continue
+            # fvg_touch_rev: arah trade dibalik (fade FVG touch)
+            if ENTRY_MODE == 'fvg_touch_rev':
+                _trade_stype = "Short" if stype == "Long" else "Long"
             if d > 0 and d >= ep * MIN_DIST_PCT:
                 _entry_idx   = found_fvg_idx
                 _entry_price = ep
-                # SL_MULT memperlebar SL dari fvg_bottom:
-                # SL_MULT=1 → fvg_bottom (default), SL_MULT=2 → 1R di bawah fvg_bottom
-                _sl_price    = ep - SL_MULT * d if stype == "Long" else ep + SL_MULT * d
-                _final_tp    = ep + TP_MULT * d if stype == "Long" else ep - TP_MULT * d
-                _dist        = SL_MULT * d   # actual risk distance untuk qty sizing
+                _sl_price    = ep - SL_MULT * d if _trade_stype == "Long" else ep + SL_MULT * d
+                _final_tp    = ep + TP_MULT * d if _trade_stype == "Long" else ep - TP_MULT * d
+                _dist        = SL_MULT * d
             else:
                 c_dir_fail += 1; i += 12; continue
 
@@ -960,7 +962,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
         if _entry_idx is None: i += 12; continue
 
         pnl, outcome, exit_p, exit_ts = simulate_trade(
-            df_m5_full, _entry_idx, _entry_price, _sl_price, _final_tp, stype, balance,
+            df_m5_full, _entry_idx, _entry_price, _sl_price, _final_tp, _trade_stype, balance,
             _skip_reasons=c_simskip_reasons
         )
         if outcome == 'skip':
@@ -994,7 +996,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
 
         trades.append({
             'symbol'         : symbol,
-            'type'           : stype,
+            'type'           : _trade_stype,
             'setup_type'     : stype,
             'entry_ts'       : df_m5_full.iloc[_entry_idx]['ts'],
             'exit_ts'        : exit_ts,
