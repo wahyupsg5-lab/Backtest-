@@ -24,9 +24,10 @@ MIN_RR          = 1.5   # 1:2 = 2.0, 1:3 = 3.0 — cukup untuk contrarian
 MIN_DIST_PCT    = 0.005     # minimum SL distance 0.5%
 
 # ── Test variant config (override dari luar untuk testing) ──
-ENTRY_MODE   = 'bb_sl'  # 'bb_sl'|'bb_entry'|'bb_entry_imm'|'market'|'fvg_touch'|'fvg_touch_rev'|'idm_touch'|'fvg_confirm'|'fvg_deep'|'fvg_dip'
-SL_MULT      = 2.0      # SL = mss_close ± dist * SL_MULT
-TP_MULT      = 2.0      # TP = mss_close ± dist * TP_MULT
+ENTRY_MODE   = 'bb_sl'  # 'bb_sl'|'bb_entry'|'fvg_touch'|'fvg_touch_rev'|'fvg_rev_limit'|'idm_touch'|'fvg_confirm'|'fvg_deep'|'fvg_dip'
+SL_MULT      = 2.0      # SL distance dari titik 0 (dalam R unit = FVG height)
+TP_MULT      = 2.0      # TP distance dari titik 0 (dalam R unit)
+ENTRY_R      = 8.0      # fvg_rev_limit: level limit entry dari titik 0 (dalam R)
 TIME_FILTER  = 0        # max candles FVG→MSS (0 = disabled)
 TRAIL_STOP   = 0.0      # trailing SL step dalam R (0 = disabled, pakai fixed TP)
 
@@ -733,6 +734,52 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                 _sl_price    = sl_nat
                 _final_tp    = conf_close + d * TP_MULT if stype == "Long" else conf_close - d * TP_MULT
                 _dist        = d
+            else:
+                c_dir_fail += 1; i += 12; continue
+
+        # ════════════════════════════════════════════════════════
+        # OPSI B3b: fvg_rev_limit — fade FVG touch dengan limit entry
+        # Tunggu harga bounce ENTRY_R dari titik 0, lalu entry berlawanan.
+        # SL di SL_MULT*R dari titik 0, TP di TP_MULT*R dari titik 0
+        # (TP di sisi berlawanan arah trade dari titik 0)
+        # ════════════════════════════════════════════════════════
+        elif ENTRY_MODE == 'fvg_rev_limit':
+            ep = float(df_m5_full.iloc[found_fvg_idx]['close'])
+            if stype == "Long":
+                d = ep - float(used_fvg['bottom'])
+                _trade_stype  = "Short"
+                entry_limit   = ep + ENTRY_R  * d   # +8R dari titik 0
+                sl_abs        = ep + SL_MULT  * d   # +9.5R dari titik 0
+                tp_abs        = ep - TP_MULT  * d   # -8.2R dari titik 0
+            else:
+                d = float(used_fvg['top']) - ep
+                _trade_stype  = "Long"
+                entry_limit   = ep - ENTRY_R  * d   # -8R dari titik 0
+                sl_abs        = ep - SL_MULT  * d   # -9.5R dari titik 0
+                tp_abs        = ep + TP_MULT  * d   # +8.2R dari titik 0
+
+            if d <= 0:
+                c_dir_fail += 1; i += 12; continue
+
+            # Scan forward: tunggu price trigger limit entry (max 48 jam)
+            limit_idx = None
+            scan_end  = min(total - 1, found_fvg_idx + 576)
+            for k in range(found_fvg_idx + 1, scan_end + 1):
+                ck_h = float(df_m5_full.iloc[k]['high'])
+                ck_l = float(df_m5_full.iloc[k]['low'])
+                if _trade_stype == "Short" and ck_h >= entry_limit: limit_idx = k; break
+                if _trade_stype == "Long"  and ck_l <= entry_limit: limit_idx = k; break
+
+            if limit_idx is None:
+                c_dir_fail += 1; i += 12; continue
+
+            dist_risk = abs(sl_abs - entry_limit)
+            if dist_risk > 0 and dist_risk >= entry_limit * MIN_DIST_PCT:
+                _entry_idx   = limit_idx
+                _entry_price = entry_limit
+                _sl_price    = sl_abs
+                _final_tp    = tp_abs
+                _dist        = dist_risk
             else:
                 c_dir_fail += 1; i += 12; continue
 
