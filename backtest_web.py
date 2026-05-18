@@ -484,6 +484,18 @@ def _run():
                 buckets[key] = buckets.get(key, 0) + 1
             bkt_str = "  ".join(f"{k}:{v}" for k, v in sorted(buckets.items(), key=lambda x: int(x[0].split('-')[0])))
             _log_msg(f"  MAE (SL→TP={sl_then_tp}): {bkt_str}")
+        mfe_trades = [t['mfe_r'] for t in trades
+                      if t['outcome'] in ('sl', 'timeout')
+                      and not t.get('sl_then_tp')
+                      and t.get('mfe_r', -1) >= 0]
+        if mfe_trades:
+            mbuckets = {}
+            for r in mfe_trades:
+                lo = int(r); key = f"{lo}-{lo+1}R"
+                mbuckets[key] = mbuckets.get(key, 0) + 1
+            mkt_str = "  ".join(f"{k}:{v}" for k, v in sorted(mbuckets.items(), key=lambda x: int(x[0].split('-')[0])))
+            n_dr = sum(1 for t in trades if t['outcome'] in ('sl', 'timeout') and not t.get('sl_then_tp'))
+            _log_msg(f"  MFE Dr (n={len(mfe_trades)}/{n_dr}): {mkt_str}")
 
         results.append({
             'symbol': symbol, 'status': 'ok',
