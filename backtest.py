@@ -1030,13 +1030,13 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
             tp_hit_idx = None
             for k in range(in_trade_until_idx + 1, scan_end):
                 ck = df_m5_full.iloc[k]
-                if stype == "Long":
+                if _trade_stype == "Long":
                     if float(ck['high']) >= _final_tp: sl_then_tp = True; tp_hit_idx = k; break
                 else:
                     if float(ck['low'])  <= _final_tp: sl_then_tp = True; tp_hit_idx = k; break
             if sl_then_tp and tp_hit_idx is not None:
                 win = df_m5_full.iloc[_entry_idx : tp_hit_idx + 1]
-                if stype == "Long":
+                if _trade_stype == "Long":
                     mae_r = (_entry_price - float(win['low'].min()))  / _dist
                 else:
                     mae_r = (float(win['high'].max()) - _entry_price) / _dist
