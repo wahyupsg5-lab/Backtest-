@@ -644,6 +644,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                 'fvg_top'  : float(used_fvg['top']),
                 'fvg_bot'  : float(used_fvg['bottom']),
                 'choch'    : active_choch,
+                'bos_level': active_bos_key[1] if active_bos_key else None,
             })
 
         stype       = active_stype
