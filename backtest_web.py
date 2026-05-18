@@ -23,9 +23,9 @@ INITIAL_BALANCE  = 10.0   # modal awal $10
 
 # Entry mode — env var override atau default hardcode di sini
 _ENTRY_MODE = os.environ.get('ENTRY_MODE', 'fvg_rev_limit')
-_SL_MULT    = float(os.environ.get('SL_MULT',  '9.5'))
+_SL_MULT    = float(os.environ.get('SL_MULT',  '10.2'))
 _TP_MULT    = float(os.environ.get('TP_MULT',  '8.5'))
-_ENTRY_R    = float(os.environ.get('ENTRY_R',  '8.5'))
+_ENTRY_R    = float(os.environ.get('ENTRY_R',  '9.5'))
 bt.ENTRY_MODE = _ENTRY_MODE
 bt.SL_MULT    = _SL_MULT
 bt.TP_MULT    = _TP_MULT
