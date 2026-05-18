@@ -1101,8 +1101,8 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
         else:
             in_trade_until_idx = _entry_idx + 300
 
-        # SL→TP DIAG + MAE + MFE untuk semua losing trade
-        sl_then_tp = False; mae_r = 0.0; mfe_r = 0.0
+        # SL→TP DIAG + CHOCH + MAE + MFE untuk semua losing trade
+        sl_then_tp = False; sl_choch = False; mae_r = 0.0; mfe_r = 0.0
         mae_unit = _fvg_d if _fvg_d else _dist   # 1R = FVG height dari titik 0
         if outcome == 'sl' and _dist and _dist > 0:
             scan_end = min(in_trade_until_idx + 1 + 500, len(df_m5_full))
@@ -1119,6 +1119,17 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                     mae_r = (_entry_price - float(win['low'].min()))  / mae_unit
                 else:
                     mae_r = (float(win['high'].max()) - _entry_price) / mae_unit
+
+            # CHOCH post-SL: struktur beneran balik (hanya jika TIDAK sl_then_tp)
+            if not sl_then_tp and choch_level is not None:
+                for k in range(in_trade_until_idx + 1, scan_end):
+                    ck = df_m5_full.iloc[k]
+                    # Long SL → CHOCH jika close di bawah choch_level (bearish confirmed)
+                    if _trade_stype == "Long"  and float(ck['close']) < choch_level:
+                        sl_choch = True; break
+                    # Short SL → CHOCH jika close di atas choch_level (bullish confirmed)
+                    if _trade_stype == "Short" and float(ck['close']) > choch_level:
+                        sl_choch = True; break
 
         # MFE: seberapa jauh harga bergerak ke arah TP dari entry (dalam R titik 0)
         if outcome in ('sl', 'timeout') and mae_unit and mae_unit > 0:
@@ -1150,7 +1161,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
             'atr_ratio'      : _atr_ratio,
             'sl_dist_pct'    : round(_dist / _entry_price, 6) if _entry_price > 0 else 0.0,
             'sl_then_tp'     : sl_then_tp,
-            'sl_choch'       : False,
+            'sl_choch'       : sl_choch,
             'mae_r'          : round(mae_r, 2),
             'mfe_r'          : round(mfe_r, 2),
         })
