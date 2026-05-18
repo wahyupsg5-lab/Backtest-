@@ -24,7 +24,7 @@ MIN_RR          = 1.5   # 1:2 = 2.0, 1:3 = 3.0 — cukup untuk contrarian
 MIN_DIST_PCT    = 0.005     # minimum SL distance 0.5%
 
 # ── Test variant config (override dari luar untuk testing) ──
-ENTRY_MODE   = 'bb_sl'  # 'bb_sl'|'bb_entry'|'fvg_touch'|'fvg_touch_rev'|'fvg_rev_limit'|'idm_touch'|'fvg_confirm'|'fvg_deep'|'fvg_dip'
+ENTRY_MODE   = 'bb_sl'  # 'bb_sl'|'bb_entry'|'fvg_touch'|'fvg_touch_rev'|'fvg_rev_limit'|'idm_touch'|'fvg_confirm'|'fvg_deep'|'fvg_dip'|'fvg_strong'
 SL_MULT      = 2.0      # SL distance dari titik 0 (dalam R unit = FVG height)
 TP_MULT      = 2.0      # TP distance dari titik 0 (dalam R unit)
 ENTRY_R      = 8.0      # fvg_rev_limit: level limit entry dari titik 0 (dalam R)
@@ -236,6 +236,16 @@ def find_last_swing_bos(df):
 # FVG
 # ============================================================
 
+def _gap_vol_fields(df, c3_idx):
+    """Extract volume fields for candle 3 of an FVG (df in H1)."""
+    has_vol = 'vol' in df.columns
+    if not has_vol:
+        return {'c3_vol': 0.0, 'vol_avg20h': 0.0}
+    c3_vol   = float(df['vol'].iloc[c3_idx])
+    avg_start = max(0, c3_idx - 20)
+    vol_avg  = float(df['vol'].iloc[avg_start:c3_idx].mean()) if c3_idx > 0 else 0.0
+    return {'c3_vol': c3_vol, 'vol_avg20h': vol_avg}
+
 def get_internal_gaps(df, stype, bos_idx, lookback=60):
     gaps = []
     scan_start = max(2, bos_idx - lookback)
@@ -245,8 +255,10 @@ def get_internal_gaps(df, stype, bos_idx, lookback=60):
         gap = None
         if stype == "Long" and df['high'].iloc[i-2] < df['low'].iloc[i]:
             gap = {"top": df['low'].iloc[i], "bottom": df['high'].iloc[i-2], "zone": "pre"}
+            gap.update(_gap_vol_fields(df, i))   # candle 3 = i
         elif stype == "Short" and df['low'].iloc[i-2] > df['high'].iloc[i]:
             gap = {"top": df['low'].iloc[i-2], "bottom": df['high'].iloc[i], "zone": "pre"}
+            gap.update(_gap_vol_fields(df, i))   # candle 3 = i
         if gap:
             is_fresh = True
             for j in range(i + 1, bos_idx + 1):
@@ -264,8 +276,10 @@ def get_internal_gaps(df, stype, bos_idx, lookback=60):
         gap = None
         if stype == "Long" and df['high'].iloc[i-1] < df['low'].iloc[i+1]:
             gap = {"top": df['low'].iloc[i+1], "bottom": df['high'].iloc[i-1], "zone": "post"}
+            gap.update(_gap_vol_fields(df, i + 1))  # candle 3 = i+1
         elif stype == "Short" and df['low'].iloc[i-1] > df['high'].iloc[i+1]:
             gap = {"top": df['low'].iloc[i-1], "bottom": df['high'].iloc[i+1], "zone": "post"}
+            gap.update(_gap_vol_fields(df, i + 1))  # candle 3 = i+1
         if gap:
             is_fresh = True
             for j in range(i + 2, len(df)):
@@ -660,6 +674,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                 'bos_level': active_bos_key[1] if active_bos_key else None,
             })
 
+        bos_swing_lvl = active_bos_key[1] if active_bos_key else None  # swing level yg di-break oleh BOS
         stype       = active_stype
         choch_level = active_choch
         active_bos_key = None; active_gaps = []
@@ -783,6 +798,47 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                 _final_tp    = tp_abs
                 _dist        = dist_risk
                 _fvg_d       = d
+            else:
+                c_dir_fail += 1; i += 12; continue
+
+        # ════════════════════════════════════════════════════════
+        # OPSI B4: fvg_strong — FVG kuat (C3 volume > avg 20H)
+        # Entry limit di batas FVG (fvg_top Long / fvg_bot Short)
+        # SL = 50% dari gap FVG. TP = swing level yg di-break BOS.
+        # ════════════════════════════════════════════════════════
+        elif ENTRY_MODE == 'fvg_strong':
+            c3_vol  = float(used_fvg.get('c3_vol',   0.0))
+            vol_avg = float(used_fvg.get('vol_avg20h', 0.0))
+            if vol_avg <= 0 or c3_vol <= vol_avg:
+                c_dir_fail += 1; i += 12; continue
+
+            fvg_top  = float(used_fvg['top'])
+            fvg_bot  = float(used_fvg['bottom'])
+            gap_size = fvg_top - fvg_bot
+            if gap_size <= 0:
+                c_dir_fail += 1; i += 12; continue
+
+            if stype == "Long":
+                entry_p = fvg_top                       # limit: price dips ke sini
+                sl_p    = fvg_top - 0.5 * gap_size      # SL di 50% gap (midpoint)
+                tp_p    = bos_swing_lvl if bos_swing_lvl else fvg_top + 2 * gap_size
+                if tp_p <= entry_p:                     # TP harus di atas entry (Long)
+                    c_dir_fail += 1; i += 12; continue
+            else:
+                entry_p = fvg_bot                       # limit: price rallies ke sini
+                sl_p    = fvg_bot + 0.5 * gap_size      # SL di 50% gap (midpoint)
+                tp_p    = bos_swing_lvl if bos_swing_lvl else fvg_bot - 2 * gap_size
+                if tp_p >= entry_p:                     # TP harus di bawah entry (Short)
+                    c_dir_fail += 1; i += 12; continue
+
+            d = 0.5 * gap_size
+            if d > 0 and d >= entry_p * MIN_DIST_PCT:
+                _entry_idx   = found_fvg_idx
+                _entry_price = entry_p
+                _sl_price    = sl_p
+                _final_tp    = tp_p
+                _dist        = d
+                _fvg_d       = gap_size
             else:
                 c_dir_fail += 1; i += 12; continue
 
