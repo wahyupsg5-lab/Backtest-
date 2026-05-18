@@ -632,12 +632,18 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
 
         # LOG event untuk analisis eksternal
         if _fvg_events is not None:
+            touch_c = df_m5_full.iloc[found_fvg_idx]
             _fvg_events.append({
-                'idx'    : found_fvg_idx,
-                'ts'     : df_m5_full.iloc[found_fvg_idx]['ts'],
-                'stype'  : active_stype,
-                'price'  : float(df_m5_full.iloc[found_fvg_idx]['close']),
-                'choch'  : active_choch,
+                'idx'      : found_fvg_idx,
+                'ts'       : touch_c['ts'],
+                'stype'    : active_stype,
+                'open'     : float(touch_c['open']),
+                'high'     : float(touch_c['high']),
+                'low'      : float(touch_c['low']),
+                'close'    : float(touch_c['close']),
+                'fvg_top'  : float(used_fvg['top']),
+                'fvg_bot'  : float(used_fvg['bottom']),
+                'choch'    : active_choch,
             })
 
         stype       = active_stype
