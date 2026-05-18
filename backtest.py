@@ -1026,8 +1026,9 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
         else:
             in_trade_until_idx = _entry_idx + 300
 
-        # SL→TP DIAG + MAE
-        sl_then_tp = False; mae_r = 0.0
+        # SL→TP DIAG + MAE + MFE untuk semua losing trade
+        sl_then_tp = False; mae_r = 0.0; mfe_r = 0.0
+        mae_unit = _fvg_d if _fvg_d else _dist   # 1R = FVG height dari titik 0
         if outcome == 'sl' and _dist and _dist > 0:
             scan_end = min(in_trade_until_idx + 1 + 500, len(df_m5_full))
             tp_hit_idx = None
@@ -1038,12 +1039,21 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                 else:
                     if float(ck['low'])  <= _final_tp: sl_then_tp = True; tp_hit_idx = k; break
             if sl_then_tp and tp_hit_idx is not None:
-                win      = df_m5_full.iloc[_entry_idx : tp_hit_idx + 1]
-                mae_unit = _fvg_d if _fvg_d else _dist  # 1R = FVG height dari titik 0
+                win = df_m5_full.iloc[_entry_idx : tp_hit_idx + 1]
                 if _trade_stype == "Long":
                     mae_r = (_entry_price - float(win['low'].min()))  / mae_unit
                 else:
                     mae_r = (float(win['high'].max()) - _entry_price) / mae_unit
+
+        # MFE: seberapa jauh harga bergerak ke arah TP dari entry (dalam R titik 0)
+        if outcome in ('sl', 'timeout') and mae_unit and mae_unit > 0:
+            scan_window = df_m5_full.iloc[_entry_idx : in_trade_until_idx + 1]
+            if len(scan_window):
+                if _trade_stype == "Long":
+                    mfe_r = (float(scan_window['high'].max()) - _entry_price) / mae_unit
+                else:
+                    mfe_r = (_entry_price - float(scan_window['low'].min()))  / mae_unit
+                mfe_r = max(mfe_r, 0.0)
 
         trades.append({
             'symbol'         : symbol,
@@ -1067,6 +1077,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
             'sl_then_tp'     : sl_then_tp,
             'sl_choch'       : False,
             'mae_r'          : round(mae_r, 2),
+            'mfe_r'          : round(mfe_r, 2),
         })
 
         i = in_trade_until_idx + 1
@@ -1156,6 +1167,16 @@ def main():
                     buckets[key] = buckets.get(key, 0) + 1
                 bkt_str = "  ".join(f"{k}:{v}" for k, v in sorted(buckets.items(), key=lambda x: int(x[0].split('-')[0])))
                 print(f"   MAE (SL→TP={sl_tp}): {bkt_str}")
+
+            # MFE bucket untuk semua losing trades (SL + timeout/drift)
+            mfe_trades = [t['mfe_r'] for t in trades if t['outcome'] in ('sl','timeout') and not t.get('sl_then_tp') and t.get('mfe_r',0) >= 0]
+            if mfe_trades:
+                mbuckets = {}
+                for r in mfe_trades:
+                    lo = int(r); key = f"{lo}-{lo+1}R"
+                    mbuckets[key] = mbuckets.get(key, 0) + 1
+                mkt_str = "  ".join(f"{k}:{v}" for k, v in sorted(mbuckets.items(), key=lambda x: int(x[0].split('-')[0])))
+                print(f"   MFE (Dr={sl_drift} n={len(mfe_trades)}): {mkt_str}")
 
             coin_results.append({
                 'symbol': symbol, 'trades': n, 'win': len(wins), 'loss': len(losses),
