@@ -665,7 +665,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
         # ════════════════════════════════════════════════════════
         # OPSI B: Entry langsung di FVG touch
         # ════════════════════════════════════════════════════════
-        if ENTRY_MODE == 'fvg_touch':
+        if ENTRY_MODE in ('fvg_touch', 'fvg_deep'):
             ep = float(df_m5_full.iloc[found_fvg_idx]['close'])
             if stype == "Long":
                 sl_nat = float(used_fvg['bottom'])
@@ -673,6 +673,13 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
             else:
                 sl_nat = float(used_fvg['top'])
                 d = sl_nat - ep
+            # fvg_deep: close harus ada di dalam FVG (di bawah midpoint untuk Long)
+            fvg_mid = (float(used_fvg['top']) + float(used_fvg['bottom'])) / 2
+            if ENTRY_MODE == 'fvg_deep':
+                if stype == "Long"  and ep > fvg_mid:
+                    c_dir_fail += 1; i += 12; continue
+                if stype == "Short" and ep < fvg_mid:
+                    c_dir_fail += 1; i += 12; continue
             if d > 0 and d >= ep * MIN_DIST_PCT:
                 _entry_idx   = found_fvg_idx
                 _entry_price = ep
