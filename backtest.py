@@ -31,6 +31,7 @@ ENTRY_R      = 8.0      # fvg_rev_limit: level limit entry dari titik 0 (dalam R
 TIME_FILTER  = 0        # max candles FVG→MSS (0 = disabled)
 TRAIL_STOP   = 0.0      # trailing SL step dalam R (0 = disabled, pakai fixed TP)
 TOUCH_VOL_MIN = 0.8     # fvg_strong: touch candle vol min (× avg 20 M5 candle; 0 = no filter)
+MAX_GAP_PCT   = 0.005   # fvg_strong: max gap_size / entry_p (0 = no filter)
 
 DATA_DIR = "/home/claude/fulldata"
 FILES = {
@@ -839,10 +840,12 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
             if gap_size <= 0:
                 c_dir_fail += 1; i += 12; continue
 
-            # Entry di OCL = C2 close (level transisi impulse → continuation)
+            # Entry di OCL = C2 close (hitung dulu entry_p untuk gap% check)
             c2_close = float(used_fvg.get('c2_close',
                              fvg_bot if stype == 'Short' else fvg_top))
             entry_p  = c2_close
+            if entry_p > 0 and MAX_GAP_PCT > 0 and gap_size / entry_p > MAX_GAP_PCT:
+                c_dir_fail += 1; i += 12; continue
 
             if stype == "Long":
                 sl_p = entry_p - SL_MULT * gap_size

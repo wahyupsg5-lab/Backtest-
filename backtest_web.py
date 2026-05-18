@@ -26,12 +26,14 @@ _ENTRY_MODE    = os.environ.get('ENTRY_MODE',    'fvg_strong')
 _SL_MULT       = float(os.environ.get('SL_MULT',       '6.2'))
 _TP_MULT       = float(os.environ.get('TP_MULT',       '18.6'))
 _ENTRY_R       = float(os.environ.get('ENTRY_R',       '9.5'))
-_TOUCH_VOL_MIN = float(os.environ.get('TOUCH_VOL_MIN', '0.8'))  # min vol ratio at OCL touch
+_TOUCH_VOL_MIN = float(os.environ.get('TOUCH_VOL_MIN', '0.8'))    # min vol ratio at OCL touch
+_MAX_GAP_PCT   = float(os.environ.get('MAX_GAP_PCT',   '0.005'))  # max gap_size/price (0=off)
 bt.ENTRY_MODE    = _ENTRY_MODE
 bt.SL_MULT       = _SL_MULT
 bt.TP_MULT       = _TP_MULT
 bt.ENTRY_R       = _ENTRY_R
 bt.TOUCH_VOL_MIN = _TOUCH_VOL_MIN
+bt.MAX_GAP_PCT   = _MAX_GAP_PCT
 
 COINS = [
     # Core
@@ -425,7 +427,7 @@ def _run():
     global _phase, _results, _quarter_stats, _all_trades, _compound_final_bal
 
     _log_msg("=" * 62)
-    _log_msg(f"BACKTEST 22 COIN — {_ENTRY_MODE.upper()} SL={_SL_MULT}R TP={_TP_MULT}R TouchVol≥{_TOUCH_VOL_MIN}× | Full Year 2025 | Modal ${INITIAL_BALANCE:.0f} | Risk 1%")
+    _log_msg(f"BACKTEST 22 COIN — {_ENTRY_MODE.upper()} SL={_SL_MULT}R TP={_TP_MULT}R TouchVol≥{_TOUCH_VOL_MIN}× MaxGap≤{_MAX_GAP_PCT*100:.2f}% | Full Year 2025 | Modal ${INITIAL_BALANCE:.0f} | Risk 1%")
     _log_msg(f"{len(COINS)} Coins: {', '.join(COINS)}")
     _log_msg("=" * 62)
 
