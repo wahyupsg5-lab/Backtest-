@@ -473,10 +473,11 @@ def find_breaker_block(df_m5, mss_ts_ms, stype):
 # SIMULASI EKSEKUSI TRADE
 # ============================================================
 
-def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance, _skip_reasons=None):
+def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance, _skip_reasons=None, _extra_out=None):
     """
     Simulasi trade dari entry_idx+1 sampai TP/SL kena.
     Return: (pnl_usd, outcome, exit_price, exit_ts)
+    _extra_out dict gets: max_float_r, trail_engaged, trail_exit_r
     """
     def _skip(reason):
         if _skip_reasons is not None:
@@ -512,46 +513,60 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance, _skip_reason
     total_fee = 2 * notional * TAKER_FEE
 
     # Walk forward candle-by-candle
-    future   = df_m5.iloc[entry_idx+1:entry_idx+1000]  # max 1000 candle (~83 jam)
-    trail_sl = sl   # trailing SL dimulai dari SL awal
-    peak     = entry
+    future        = df_m5.iloc[entry_idx+1:entry_idx+1000]  # max 1000 candle (~83 jam)
+    trail_sl      = sl
+    peak          = entry
+    max_float     = 0.0    # max favorable price move from entry
+    trail_engaged = False  # trailing SL moved to BE or better
+    outcome       = 'timeout'
+    exit_p        = float(future.iloc[-1]['close']) if len(future) else entry
+    exit_ts       = future.iloc[-1]['ts'] if len(future) else None
+
     for _, c in future.iterrows():
         h, l = float(c['high']), float(c['low'])
         if stype == "Long":
-            # Update trailing SL jika TRAIL_STOP aktif
+            adv = h - entry
+            if adv > max_float:
+                max_float = adv
             if TRAIL_STOP > 0 and h > peak:
                 peak     = h
-                trail_sl = max(trail_sl, peak - TRAIL_STOP * dist)
+                new_tsl  = peak - TRAIL_STOP * dist
+                trail_sl = max(trail_sl, new_tsl)
+                if trail_sl >= entry:
+                    trail_engaged = True
             cur_sl = trail_sl if TRAIL_STOP > 0 else sl
             if l <= cur_sl:
-                exit_p = cur_sl
-                pnl    = (exit_p - entry) * qty - total_fee
-                return pnl, 'sl', exit_p, c['ts']
+                exit_p = cur_sl; exit_ts = c['ts']; outcome = 'sl'; break
             if h >= tp:
-                exit_p = tp
-                pnl    = (exit_p - entry) * qty - total_fee
-                return pnl, 'tp', exit_p, c['ts']
+                exit_p = tp;    exit_ts = c['ts']; outcome = 'tp'; break
         else:
+            adv = entry - l
+            if adv > max_float:
+                max_float = adv
             if TRAIL_STOP > 0 and l < peak:
                 peak     = l
-                trail_sl = min(trail_sl, peak + TRAIL_STOP * dist)
+                new_tsl  = peak + TRAIL_STOP * dist
+                trail_sl = min(trail_sl, new_tsl)
+                if trail_sl <= entry:
+                    trail_engaged = True
             cur_sl = trail_sl if TRAIL_STOP > 0 else sl
             if h >= cur_sl:
-                exit_p = cur_sl
-                pnl    = (entry - exit_p) * qty - total_fee
-                return pnl, 'sl', exit_p, c['ts']
+                exit_p = cur_sl; exit_ts = c['ts']; outcome = 'sl'; break
             if l <= tp:
-                exit_p = tp
-                pnl    = (entry - exit_p) * qty - total_fee
-                return pnl, 'tp', exit_p, c['ts']
+                exit_p = tp;    exit_ts = c['ts']; outcome = 'tp'; break
 
-    # Timeout — close at last candle
-    exit_p = float(future.iloc[-1]['close']) if len(future) else entry
     if stype == "Long":
         pnl = (exit_p - entry) * qty - total_fee
     else:
         pnl = (entry - exit_p) * qty - total_fee
-    return pnl, 'timeout', exit_p, future.iloc[-1]['ts'] if len(future) else None
+
+    if _extra_out is not None:
+        _extra_out['max_float_r']   = max_float / dist if dist > 0 else 0.0
+        _extra_out['trail_engaged'] = trail_engaged
+        _extra_out['trail_exit_r']  = ((exit_p - entry) / dist if stype == "Long"
+                                       else (entry - exit_p) / dist) if dist > 0 else 0.0
+
+    return pnl, outcome, exit_p, exit_ts
 
 
 # ============================================================
@@ -919,7 +934,9 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                 _entry_idx   = found_fvg_idx
                 _entry_price = entry_p
                 _sl_price    = sl_p
-                _final_tp    = tp_p
+                # Trailing stop mode: TP set very far — no fixed exit, trail handles it
+                _final_tp    = tp_p if TRAIL_STOP == 0 else (
+                    entry_p + 1000 * gap_size if stype == "Long" else entry_p - 1000 * gap_size)
                 _dist        = d
                 _fvg_d       = gap_size
                 # FVG vol strength (C3 at formation) and gap size for analysis
@@ -1155,9 +1172,10 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
         # ════════════════════════════════════════════════════════
         if _entry_idx is None: i += 12; continue
 
+        _extra = {}
         pnl, outcome, exit_p, exit_ts = simulate_trade(
             df_m5_full, _entry_idx, _entry_price, _sl_price, _final_tp, _trade_stype, balance,
-            _skip_reasons=c_simskip_reasons
+            _skip_reasons=c_simskip_reasons, _extra_out=_extra
         )
         if outcome == 'skip':
             c_sim_skip += 1; i = _entry_idx + 1; continue
@@ -1234,7 +1252,69 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
             'sl_choch'       : sl_choch,
             'mae_r'          : round(mae_r, 2),
             'mfe_r'          : round(mfe_r, 2),
+            'is_reverse'     : False,
         })
+
+        # ════════════════════════════════════════════════════════
+        # Reverse posisi saat SL kena (fvg_strong + trailing stop)
+        # Kondisi 1: immediate SL (harga langsung kena SL, tidak ada float profit)
+        # Kondisi 2: trailing SL terpicu setelah mencapai BE atau lebih
+        # ════════════════════════════════════════════════════════
+        if TRAIL_STOP > 0 and ENTRY_MODE == 'fvg_strong' and outcome == 'sl':
+            _imm_sl    = _extra.get('max_float_r', 1.0) < 0.1   # tidak ada float profit
+            _trail_hit = _extra.get('trail_engaged', False)       # trailing SL aktif di BE+
+            if _imm_sl or _trail_hit:
+                _rev_type     = "Short" if _trade_stype == "Long" else "Long"
+                _rev_entry    = exit_p
+                _rev_dist     = _dist
+                _rev_open_idx = in_trade_until_idx   # index saat reverse dibuka
+                _rev_open_ts  = df_m5_full.iloc[_rev_open_idx]['ts'] \
+                                if _rev_open_idx < total else exit_ts
+                if _rev_type == "Long":
+                    _rev_sl = _rev_entry - _rev_dist
+                    _rev_tp = _rev_entry + 1000 * _rev_dist
+                else:
+                    _rev_sl = _rev_entry + _rev_dist
+                    _rev_tp = _rev_entry - 1000 * _rev_dist
+                rev_pnl, rev_outcome, rev_exit_p, rev_exit_ts = simulate_trade(
+                    df_m5_full, _rev_open_idx, _rev_entry, _rev_sl, _rev_tp,
+                    _rev_type, balance, _skip_reasons=c_simskip_reasons
+                )
+                if rev_outcome != 'skip':
+                    balance += rev_pnl
+                    if rev_exit_ts is not None:
+                        rev_rows = df_m5_full[df_m5_full['ts'] == rev_exit_ts].index
+                        in_trade_until_idx = int(rev_rows[0]) if len(rev_rows) \
+                                             else _rev_open_idx + 300
+                    else:
+                        in_trade_until_idx = _rev_open_idx + 300
+                    _rev_reason = 'imm_sl' if _imm_sl else 'trail_be'
+                    trades.append({
+                        'symbol'         : symbol,
+                        'type'           : _rev_type,
+                        'setup_type'     : 'Reverse',
+                        'entry_ts'       : _rev_open_ts,
+                        'exit_ts'        : rev_exit_ts,
+                        'entry'          : round(_rev_entry, 8),
+                        'sl'             : round(_rev_sl, 8),
+                        'tp'             : round(_rev_tp, 8),
+                        'exit_price'     : round(rev_exit_p, 8),
+                        'outcome'        : rev_outcome,
+                        'pnl_usd'        : round(rev_pnl, 4),
+                        'balance'        : round(balance, 4),
+                        'trigger'        : _rev_reason,
+                        'idm_depth'      : 0,
+                        'mss_body_ratio' : 0.0,
+                        'vol_ratio'      : _vol_ratio,
+                        'atr_ratio'      : _atr_ratio,
+                        'touch_vol_ratio': _touch_vol_ratio,
+                        'sl_dist_pct'    : round(_rev_dist / _rev_entry, 6) if _rev_entry > 0 else 0.0,
+                        'sl_then_tp'     : False,
+                        'sl_choch'       : False,
+                        'mae_r'          : 0.0,
+                        'mfe_r'          : 0.0,
+                        'is_reverse'     : True,
+                    })
 
         i = in_trade_until_idx + 1
 

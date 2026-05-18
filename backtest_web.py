@@ -28,12 +28,14 @@ _TP_MULT       = float(os.environ.get('TP_MULT',       '18.6'))
 _ENTRY_R       = float(os.environ.get('ENTRY_R',       '9.5'))
 _TOUCH_VOL_MIN = float(os.environ.get('TOUCH_VOL_MIN', '0.8'))    # min vol ratio at OCL touch
 _MAX_GAP_PCT   = float(os.environ.get('MAX_GAP_PCT',   '0.005'))  # max gap_size/price (0=off)
+_TRAIL_STOP    = float(os.environ.get('TRAIL_STOP',    '0.0'))    # trailing SL (1.0=trail at 1R dist; 0=fixed TP)
 bt.ENTRY_MODE    = _ENTRY_MODE
 bt.SL_MULT       = _SL_MULT
 bt.TP_MULT       = _TP_MULT
 bt.ENTRY_R       = _ENTRY_R
 bt.TOUCH_VOL_MIN = _TOUCH_VOL_MIN
 bt.MAX_GAP_PCT   = _MAX_GAP_PCT
+bt.TRAIL_STOP    = _TRAIL_STOP
 
 COINS = [
     # Core
@@ -427,7 +429,8 @@ def _run():
     global _phase, _results, _quarter_stats, _all_trades, _compound_final_bal
 
     _log_msg("=" * 62)
-    _log_msg(f"BACKTEST 22 COIN — {_ENTRY_MODE.upper()} SL={_SL_MULT}R TP={_TP_MULT}R TouchVol≥{_TOUCH_VOL_MIN}× MaxGap≤{_MAX_GAP_PCT*100:.2f}% CoinFilter:ON | Full Year 2025 | Modal ${INITIAL_BALANCE:.0f} | Risk 1%")
+    _trail_str = f" Trail={_TRAIL_STOP}R+Reverse" if _TRAIL_STOP > 0 else f" TP={_TP_MULT}R"
+    _log_msg(f"BACKTEST 22 COIN — {_ENTRY_MODE.upper()} SL={_SL_MULT}R{_trail_str} TouchVol≥{_TOUCH_VOL_MIN}× MaxGap≤{_MAX_GAP_PCT*100:.2f}% CoinFilter:ON | Full Year 2025 | Modal ${INITIAL_BALANCE:.0f} | Risk 1%")
     _log_msg(f"{len(COINS)} Coins: {', '.join(COINS)}")
     _log_msg("=" * 62)
 
