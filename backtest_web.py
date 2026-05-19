@@ -38,17 +38,13 @@ bt.MAX_GAP_PCT   = _MAX_GAP_PCT
 bt.TRAIL_STOP    = _TRAIL_STOP
 
 COINS = [
-    # Aktif (17 — LINK dibuang)
-    'XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT', 'USUALUSDT',
-    '1000PEPEUSDT', 'WIFUSDT', 'PNUTUSDT',
-    'ONDOUSDT', 'EIGENUSDT', 'VIRTUALUSDT', 'ORCAUSDT',
-    'DOGEUSDT', 'ARBUSDT', 'STORJUSDT', 'ENAUSDT',
-    'SHIB1000USDT',
-    # Sisa kandidat IDM (masih ditest)
-    'SUIUSDT', '1000FLOKIUSDT', 'INJUSDT', 'ICPUSDT',
-    # Kandidat baru — belum pernah ditest sama sekali
+    # Batch 1 (8 kandidat baru kemarin)
     'SOLUSDT', 'APTUSDT', 'OPUSDT', 'RUNEUSDT', 'WLDUSDT',
     'JUPUSDT', 'AAVEUSDT', 'LTCUSDT',
+    # Batch 2 (12 kandidat baru)
+    'HYPEUSDT', 'SEIUSDT', 'TIAUSDT', 'RENDERUSDT',
+    'DOTUSDT', 'UNIUSDT', 'ATOMUSDT', 'CRVUSDT',
+    'STXUSDT', 'FETUSDT', 'GRTUSDT', 'ARUSDT',
 ]
 
 # 2025-01-01 00:00:00 UTC  →  2025-12-31 23:59:59 UTC  (dalam ms)
