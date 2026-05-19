@@ -38,19 +38,14 @@ bt.MAX_GAP_PCT   = _MAX_GAP_PCT
 bt.TRAIL_STOP    = _TRAIL_STOP
 
 COINS = [
-    # ── Aktif di bot (17 coin, belum ditest fvg_strong) ───────────────
+    # Sama persis dengan SYMBOLS di bott_v4.py (23 coin aktif)
     'XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT',
-    '1000PEPEUSDT', 'WIFUSDT', 'PNUTUSDT',
-    'ONDOUSDT', 'EIGENUSDT', 'VIRTUALUSDT', 'ORCAUSDT',
-    'DOGEUSDT', 'ARBUSDT', 'STORJUSDT', 'ENAUSDT',
-    'SHIB1000USDT',
-    # ── Kandidat IDM (belum ditest fvg_strong) ────────────────────────
-    'SUIUSDT', '1000FLOKIUSDT', 'INJUSDT', 'ICPUSDT',
-    # ── Lolos screening Batch 3 (fvg_strong) ──────────────────────────
+    '1000PEPEUSDT', 'PNUTUSDT',
+    'ONDOUSDT', 'EIGENUSDT', 'VIRTUALUSDT',
+    'ARBUSDT', 'ENAUSDT', 'SHIB1000USDT',
+    '1000FLOKIUSDT',
     'JUPUSDT', 'DOTUSDT', 'SEIUSDT', 'OPUSDT', 'RUNEUSDT',
-    'STXUSDT', 'ATOMUSDT', 'SOLUSDT', 'GRTUSDT',
-    # ── Lolos screening Batch 4 (fvg_strong) ──────────────────────────
-    'APEUSDT', 'LDOUSDT', 'ALGOUSDT', 'PYTHUSDT', 'MASKUSDT',
+    'STXUSDT', 'ATOMUSDT', 'APEUSDT', 'LDOUSDT', 'ALGOUSDT',
 ]
 
 # 2025-01-01 00:00:00 UTC  →  2025-12-31 23:59:59 UTC  (dalam ms)
