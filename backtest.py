@@ -1261,65 +1261,87 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
         })
 
         # ════════════════════════════════════════════════════════
-        # Reverse posisi saat SL kena (fvg_strong + trailing stop)
-        # Kondisi 1: immediate SL (harga langsung kena SL, tidak ada float profit)
-        # Kondisi 2: trailing SL terpicu setelah mencapai BE atau lebih
+        # Reverse posisi saat SL kena — max 2 kali (fvg_strong + trailing stop)
+        # Long → SL → Short (rev1) → SL → Long (rev2)
+        # Kondisi: immediate SL (no float) ATAU trailing SL di BE+
         # ════════════════════════════════════════════════════════
         if TRAIL_STOP > 0 and ENTRY_MODE == 'fvg_strong':
-            _imm_sl    = outcome == 'sl' and _extra.get('max_float_r', 1.0) < 0.1
-            _trail_hit = _extra.get('trail_engaged', False)       # trailing SL aktif di BE+
-            if _imm_sl or _trail_hit:
-                _rev_type     = "Short" if _trade_stype == "Long" else "Long"
-                _rev_entry    = exit_p
-                _rev_dist     = _dist
-                _rev_open_idx = in_trade_until_idx   # index saat reverse dibuka
+            _r_outcome  = outcome
+            _r_extra    = _extra
+            _r_exit_p   = exit_p
+            _r_dist     = _dist
+            _r_type     = _trade_stype
+            _r_until    = in_trade_until_idx
+
+            for _rev_n in range(2):
+                _imm_sl    = _r_outcome == 'sl' and _r_extra.get('max_float_r', 1.0) < 0.1
+                _trail_hit = _r_extra.get('trail_engaged', False)
+                if not (_imm_sl or _trail_hit):
+                    break
+
+                _rev_type     = "Short" if _r_type == "Long" else "Long"
+                _rev_entry    = _r_exit_p
+                _rev_dist     = _r_dist
+                _rev_open_idx = _r_until
                 _rev_open_ts  = df_m5_full.iloc[_rev_open_idx]['ts'] \
-                                if _rev_open_idx < total else exit_ts
+                                if _rev_open_idx < total else None
                 if _rev_type == "Long":
                     _rev_sl = _rev_entry - _rev_dist
                     _rev_tp = _rev_entry + 1000 * _rev_dist
                 else:
                     _rev_sl = _rev_entry + _rev_dist
                     _rev_tp = _rev_entry - 1000 * _rev_dist
+
+                _rev_extra = {}
                 rev_pnl, rev_outcome, rev_exit_p, rev_exit_ts = simulate_trade(
                     df_m5_full, _rev_open_idx, _rev_entry, _rev_sl, _rev_tp,
-                    _rev_type, balance, _skip_reasons=c_simskip_reasons
+                    _rev_type, balance, _skip_reasons=c_simskip_reasons, _extra_out=_rev_extra
                 )
-                if rev_outcome != 'skip':
-                    balance += rev_pnl
-                    if rev_exit_ts is not None:
-                        rev_rows = df_m5_full[df_m5_full['ts'] == rev_exit_ts].index
-                        in_trade_until_idx = int(rev_rows[0]) if len(rev_rows) \
-                                             else _rev_open_idx + 300
-                    else:
-                        in_trade_until_idx = _rev_open_idx + 300
-                    _rev_reason = 'imm_sl' if _imm_sl else 'trail_be'
-                    trades.append({
-                        'symbol'         : symbol,
-                        'type'           : _rev_type,
-                        'setup_type'     : 'Reverse',
-                        'entry_ts'       : _rev_open_ts,
-                        'exit_ts'        : rev_exit_ts,
-                        'entry'          : round(_rev_entry, 8),
-                        'sl'             : round(_rev_sl, 8),
-                        'tp'             : round(_rev_tp, 8),
-                        'exit_price'     : round(rev_exit_p, 8),
-                        'outcome'        : rev_outcome,
-                        'pnl_usd'        : round(rev_pnl, 4),
-                        'balance'        : round(balance, 4),
-                        'trigger'        : _rev_reason,
-                        'idm_depth'      : 0,
-                        'mss_body_ratio' : 0.0,
-                        'vol_ratio'      : _vol_ratio,
-                        'atr_ratio'      : _atr_ratio,
-                        'touch_vol_ratio': _touch_vol_ratio,
-                        'sl_dist_pct'    : round(_rev_dist / _rev_entry, 6) if _rev_entry > 0 else 0.0,
-                        'sl_then_tp'     : False,
-                        'sl_choch'       : False,
-                        'mae_r'          : 0.0,
-                        'mfe_r'          : 0.0,
-                        'is_reverse'     : True,
-                    })
+                if rev_outcome == 'skip':
+                    break
+
+                balance += rev_pnl
+                if rev_exit_ts is not None:
+                    rev_rows = df_m5_full[df_m5_full['ts'] == rev_exit_ts].index
+                    in_trade_until_idx = int(rev_rows[0]) if len(rev_rows) \
+                                         else _rev_open_idx + 300
+                else:
+                    in_trade_until_idx = _rev_open_idx + 300
+
+                _rev_reason = f"rev{_rev_n+1}_{'imm' if _imm_sl else 'trail'}"
+                trades.append({
+                    'symbol'         : symbol,
+                    'type'           : _rev_type,
+                    'setup_type'     : f'Reverse{_rev_n+1}',
+                    'entry_ts'       : _rev_open_ts,
+                    'exit_ts'        : rev_exit_ts,
+                    'entry'          : round(_rev_entry, 8),
+                    'sl'             : round(_rev_sl, 8),
+                    'tp'             : round(_rev_tp, 8),
+                    'exit_price'     : round(rev_exit_p, 8),
+                    'outcome'        : rev_outcome,
+                    'pnl_usd'        : round(rev_pnl, 4),
+                    'balance'        : round(balance, 4),
+                    'trigger'        : _rev_reason,
+                    'idm_depth'      : 0,
+                    'mss_body_ratio' : 0.0,
+                    'vol_ratio'      : _vol_ratio,
+                    'atr_ratio'      : _atr_ratio,
+                    'touch_vol_ratio': _touch_vol_ratio,
+                    'sl_dist_pct'    : round(_rev_dist / _rev_entry, 6) if _rev_entry > 0 else 0.0,
+                    'sl_then_tp'     : False,
+                    'sl_choch'       : False,
+                    'mae_r'          : 0.0,
+                    'mfe_r'          : 0.0,
+                    'is_reverse'     : True,
+                })
+
+                # siapkan iterasi berikutnya
+                _r_outcome = rev_outcome
+                _r_extra   = _rev_extra
+                _r_exit_p  = rev_exit_p
+                _r_type    = _rev_type
+                _r_until   = in_trade_until_idx
 
         i = in_trade_until_idx + 1
 
