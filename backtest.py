@@ -513,7 +513,7 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance, _skip_reason
     total_fee = 2 * notional * TAKER_FEE
 
     # Walk forward candle-by-candle
-    future           = df_m5.iloc[entry_idx+1:entry_idx+1000]  # max 1000 candle (~83 jam)
+    future           = df_m5.iloc[entry_idx+1:]
     trail_sl         = sl
     peak             = entry
     max_float        = 0.0    # max favorable price move from entry
