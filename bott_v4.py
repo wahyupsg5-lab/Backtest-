@@ -430,7 +430,8 @@ def check_trailing_sl(coin):
 
             if imm_sl or trail_hit:
                 rev_side  = "Sell" if side == "Buy" else "Buy"
-                rev_entry = last_price
+                # Immediate SL: gunakan harga SL actual (bukan last_price yang bisa beda)
+                rev_entry = p['sl'] if imm_sl else last_price
                 rev_sl    = rev_entry - dist if rev_side == "Buy" else rev_entry + dist
                 rev_trail = TRAIL_STOP * dist
                 reason    = "imm" if imm_sl else "trail"
@@ -636,10 +637,18 @@ def run_bot():
                             del pending[coin]; continue
 
                     # Refresh FVG list dengan data H1 terbaru
+                    # Recompute bos_idx dari bos_ts agar tidak drift setiap fetch baru
+                    bos_ts_val = setup.get('bos_ts', 0)
+                    bos_rows   = df_h1_live.index[df_h1_live['ts'] == bos_ts_val]
+                    if len(bos_rows) > 0:
+                        bos_idx = int(bos_rows[0])
+                        pending[coin]['bos_idx'] = bos_idx
                     if bos_idx < len(df_h1_live):
                         fresh_gaps = _get_strong_fvgs(df_h1_live, stype, bos_idx, choch_level)
                         if fresh_gaps:
                             pending[coin]['fvg_list'] = fresh_gaps
+                    else:
+                        print(f"⚠️ {coin}: bos_idx {bos_idx} out of range H1 len={len(df_h1_live)}")
 
                     fvg_list = pending[coin]['fvg_list']
                     if not fvg_list:
@@ -648,9 +657,8 @@ def run_bot():
 
                     # ── WAIT_FVG_TOUCH: scan M5 untuk OCL touch ──────
                     if setup['phase'] == 'WAIT_FVG_TOUCH':
-                        # Ambil M5 terbaru (100 candle ≈ 8 jam terakhir)
-                        time.sleep(3)
-                        df_m5 = get_data(coin, "5", limit=100)
+                        # Ambil M5 terbaru — hanya butuh beberapa candle terakhir
+                        df_m5 = get_data(coin, "5", limit=30)
                         if df_m5 is None:
                             continue
 
@@ -667,8 +675,10 @@ def run_bot():
                             if ocl <= 0:
                                 continue
 
-                            # Scan dari akhir ke awal — ambil sentuhan paling baru
-                            for ki in range(len(df_m5_closed) - 1, max(len(df_m5_closed) - 20, -1), -1):
+                            # Scan hanya 3 candle terakhir (15 menit) — entry di harga market
+                            # sekarang, jadi sentuhan lama tidak relevan (harga sudah pindah)
+                            scan_start = max(len(df_m5_closed) - 3, 0)
+                            for ki in range(len(df_m5_closed) - 1, scan_start - 1, -1):
                                 ck = df_m5_closed.iloc[ki]
 
                                 touched = False
