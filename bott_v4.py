@@ -81,39 +81,44 @@ TOUCH_VOL_MIN = 0.8     # touch candle volume min (× avg 20 M5 candle)
 MAX_GAP_PCT   = 0.006   # max gap_size / entry_price (FVG ≤ 0.60%)
 
 SYMBOLS = [
-    # Core
-    'XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT', 'USUALUSDT',
-    '1000PEPEUSDT', 'WIFUSDT', 'PNUTUSDT',
-    'ONDOUSDT', 'EIGENUSDT', 'LINKUSDT', 'VIRTUALUSDT', 'ORCAUSDT',
-    # Rehabilitasi
-    'DOGEUSDT', 'ARBUSDT', 'STORJUSDT', 'ENAUSDT',
-    # Baru
-    'SHIB1000USDT',
+    # ── Lolos backtest fvg_strong full year 2025 (compound positif) ──────
+    # Original bot (dipertahankan)
+    'XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT',
+    '1000PEPEUSDT', 'PNUTUSDT',
+    'ONDOUSDT', 'EIGENUSDT', 'VIRTUALUSDT',
+    'ARBUSDT', 'ENAUSDT', 'SHIB1000USDT',
+    # Rehabilitasi (bagus di fvg_strong)
+    '1000FLOKIUSDT',
+    # Baru dari screening batch 3 & 4
+    'JUPUSDT', 'DOTUSDT', 'SEIUSDT', 'OPUSDT', 'RUNEUSDT',
+    'STXUSDT', 'ATOMUSDT', 'APEUSDT', 'LDOUSDT', 'ALGOUSDT',
 ]
 
 ATR_THRESHOLD = {
+    # ATR P25 dari backtest full year 2025 (fvg_strong)
     'XVGUSDT'       : 0.0030,
-    '1000PEPEUSDT'  : 0.0031,
-    '1000BONKUSDT'  : 0.0035,
     'BELUSDT'       : 0.0024,
-    'USUALUSDT'     : 0.0034,
+    '1000BONKUSDT'  : 0.0035,
     'BERAUSDT'      : 0.0032,
-    'WIFUSDT'       : 0.0038,
-    'PENGUUSDT'     : 0.0040,
+    '1000PEPEUSDT'  : 0.0031,
     'PNUTUSDT'      : 0.0036,
-    'AVAXUSDT'      : 0.0025,
     'ONDOUSDT'      : 0.0027,
     'EIGENUSDT'     : 0.0037,
-    'LINKUSDT'      : 0.0025,
     'VIRTUALUSDT'   : 0.0040,
-    'ORCAUSDT'      : 0.0024,
-    'DOGEUSDT'      : 0.0024,
     'ARBUSDT'       : 0.0028,
-    'NEARUSDT'      : 0.0029,
-    'STORJUSDT'     : 0.0017,
     'ENAUSDT'       : 0.0039,
-    'ADAUSDT'       : 0.0025,
     'SHIB1000USDT'  : 0.0020,
+    '1000FLOKIUSDT' : 0.0030,
+    'JUPUSDT'       : 0.0030,
+    'DOTUSDT'       : 0.0023,
+    'SEIUSDT'       : 0.0028,
+    'OPUSDT'        : 0.0029,
+    'RUNEUSDT'      : 0.0022,
+    'STXUSDT'       : 0.0025,
+    'ATOMUSDT'      : 0.0021,
+    'APEUSDT'       : 0.0024,
+    'LDOUSDT'       : 0.0031,
+    'ALGOUSDT'      : 0.0024,
 }
 
 pending          = {}
