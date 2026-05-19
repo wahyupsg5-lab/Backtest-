@@ -38,27 +38,22 @@ bt.MAX_GAP_PCT   = _MAX_GAP_PCT
 bt.TRAIL_STOP    = _TRAIL_STOP
 
 COINS = [
-    # Batch 4 — 20 coin baru belum pernah ditest
-    'BNBUSDT',   # L1 large cap, volume tertinggi after BTC/ETH
-    'XLMUSDT',   # Stellar, old reliable, trending
-    'GALAUSDT',  # Gaming/NFT, high retail interest
-    'ALGOUSDT',  # Algorand L1
-    'FILUSDT',   # Filecoin storage protocol
-    'LDOUSDT',   # Lido staking top DeFi
-    'MKRUSDT',   # MakerDAO DeFi blue chip
-    'MANAUSDT',  # Metaverse, volatile trending
-    'SANDUSDT',  # Metaverse, high volume
-    'AXSUSDT',   # Axie gaming, very volatile
-    'CHZUSDT',   # Chiliz sports tokens
-    'FTMUSDT',   # Fantom L1
-    'SNXUSDT',   # Synthetix synthetic assets
-    'APEUSDT',   # ApeCoin NFT ecosystem
-    'GMXUSDT',   # GMX perp DEX
-    '1INCHUSDT', # DEX aggregator
-    'RAYUSDT',   # Raydium Solana DEX
-    'PYTHUSDT',  # Pyth oracle
-    'ZROUSDT',   # LayerZero
-    'MASKUSDT',  # Mask Network social
+    # ── Lolos screening Batch 3 (fvg_strong) ──────────────────────────
+    'JUPUSDT',   # WR 38.4% PF 1.56 R:R 2.33 +$14.96
+    'DOTUSDT',   # WR 41.4% PF 1.60 R:R 2.12 +$12.74
+    'SEIUSDT',   # WR 34.8% PF 1.62 R:R 2.91 +$8.90  MaxDD 6.7%
+    'OPUSDT',    # WR 39.0% PF 1.21 R:R 1.92 +$5.75
+    'RUNEUSDT',  # WR 38.7% PF 1.18 R:R 1.75 +$4.02
+    'STXUSDT',   # WR 34.4% PF 1.20 R:R 2.26 +$3.59
+    'ATOMUSDT',  # WR 36.2% PF 1.05 R:R 1.89 +$3.41
+    'SOLUSDT',   # WR 37.7% PF 1.45 R:R 2.42 +$1.70
+    'GRTUSDT',   # WR 32.0% PF 1.19 R:R 2.57 +$1.67
+    # ── Lolos screening Batch 4 (fvg_strong) ──────────────────────────
+    'APEUSDT',   # WR 38.9% PF 1.24 R:R 2.03 +$1.62
+    'LDOUSDT',   # WR 36.4% PF 1.17 R:R 2.08 +$1.00  MaxDD 9.4%
+    'ALGOUSDT',  # WR 35.5% PF 1.12 R:R 2.11 +$0.75
+    'PYTHUSDT',  # WR 36.6% PF 1.17 R:R 1.98 +$0.91
+    'MASKUSDT',  # WR 36.6% PF 1.16 R:R 1.92 +$0.82
 ]
 
 # 2025-01-01 00:00:00 UTC  →  2025-12-31 23:59:59 UTC  (dalam ms)
