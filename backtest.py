@@ -493,7 +493,7 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance, _skip_reason
     trail_engaged    = False  # trailing SL moved to BE or better
     trail_prev_sl    = trail_sl
     trail_no_move    = 0      # candle counter sejak trail_sl terakhir bergerak
-    TRAIL_TIMEOUT_C  = 288    # 24 jam × 12 candle/jam
+    TRAIL_TIMEOUT_C  = 1152   # 96 jam × 12 candle/jam
     outcome          = 'timeout'
     exit_p           = float(future.iloc[-1]['close']) if len(future) else entry
     exit_ts          = future.iloc[-1]['ts'] if len(future) else None

@@ -569,6 +569,7 @@ def _run():
             'sl_choch':   sl_choch,
             'avg_rr':     round(avg_rr, 2),
             'win_loss': _win_loss_analysis(trades),
+            '_trades':  trades,
         })
         all_trades_list.extend(trades)
 
@@ -654,8 +655,16 @@ def _gen_readme() -> str:
         f"**{total_sign}${cpnl_tot:.2f}** | **{roi_total_sign}{roi_all:.0f}%** | — | **{pf_all:.2f}** | — |\n"
     )
 
-    # Win/loss analysis table
-    wl_rows_md = ""
+    # Win/loss analysis — per coin + total keseluruhan
+    all_coin_trades = []
+    for r in ok:
+        all_coin_trades.extend(r.get('_trades', []))
+    wl_total    = _win_loss_analysis(all_coin_trades)
+    ins_total   = _insight(wl_total.get('win'), wl_total.get('loss'))
+    wl_rows_md  = (
+        f"| **TOTAL** | **{_fmt_grp(wl_total.get('win'))}** | "
+        f"**{_fmt_grp(wl_total.get('loss'))}** | **{ins_total}** |\n"
+    )
     for r in sorted(ok, key=lambda x: x.get('compound_pnl', 0), reverse=True):
         wl  = r.get('win_loss', {})
         ws  = wl.get('win')
@@ -901,7 +910,20 @@ def _render_html() -> bytes:
     '''
 
     # ── win/loss analysis table ──
-    wl_rows = ''
+    all_wl_trades = []
+    for r in res_cp:
+        if r.get('status') == 'ok':
+            all_wl_trades.extend(r.get('_trades', []))
+    wl_tot    = _win_loss_analysis(all_wl_trades)
+    ins_tot   = _insight(wl_tot.get('win'), wl_tot.get('loss'))
+    wl_rows   = (
+        f'<tr style="background:#1a2a1a;font-weight:bold">'
+        f'<td>TOTAL</td>'
+        f'<td class="g">{_fmt_grp(wl_tot.get("win"))}</td>'
+        f'<td class="r">{_fmt_grp(wl_tot.get("loss"))}</td>'
+        f'<td class="y">{ins_tot}</td>'
+        f'</tr>\n'
+    )
     for r in res_cp:
         if r.get('status') != 'ok' or r.get('trades', 0) == 0:
             continue
