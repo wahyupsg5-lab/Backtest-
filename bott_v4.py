@@ -83,10 +83,10 @@ MAX_GAP_PCT   = 0.006   # max gap_size / entry_price (FVG ≤ 0.60%)
 SYMBOLS = [
     # Core
     'XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT', 'USUALUSDT',
-    '1000PEPEUSDT', 'WIFUSDT', 'PENGUUSDT', 'PNUTUSDT',
-    'AVAXUSDT', 'ONDOUSDT', 'EIGENUSDT', 'LINKUSDT', 'VIRTUALUSDT', 'ORCAUSDT',
+    '1000PEPEUSDT', 'WIFUSDT', 'PNUTUSDT',
+    'ONDOUSDT', 'EIGENUSDT', 'LINKUSDT', 'VIRTUALUSDT', 'ORCAUSDT',
     # Rehabilitasi
-    'DOGEUSDT', 'ARBUSDT', 'NEARUSDT', 'STORJUSDT', 'ENAUSDT', 'ADAUSDT',
+    'DOGEUSDT', 'ARBUSDT', 'STORJUSDT', 'ENAUSDT',
     # Baru
     'SHIB1000USDT',
 ]
@@ -362,7 +362,6 @@ def place_market_order(symbol, side, entry, sl, trail_dist):
             category=CATEGORY, symbol=symbol, side=side,
             orderType="Market", qty=str(qty),
             stopLoss=str(sl_r),
-            trailingStop=str(trail_dist_r),
             timeInForce="IOC"
         )
         if res['retCode'] == 0:
@@ -465,6 +464,28 @@ def check_trailing_sl(coin):
         entry = p['entry']
         dist  = p.get('dist', 0)
         side  = p['side']
+
+        # Pasang trailing stop via set_trading_stop saat pertama posisi terdeteksi
+        if TRAIL_STOP > 0 and dist > 0 and not p.get('trail_set', False):
+            trail_dist = p.get('trail_dist', TRAIL_STOP * dist)
+            info       = get_instrument_info(coin)
+            trail_r    = round_price(trail_dist, info.get('tick_size', 0.0001))
+            if trail_r > 0:
+                try:
+                    res_ts = session.set_trading_stop(
+                        category=CATEGORY, symbol=coin,
+                        trailingStop=str(trail_r), positionIdx=0
+                    )
+                    if res_ts['retCode'] == 0:
+                        active_positions[coin]['trail_set'] = True
+                        print(f"📍 {coin}: Trailing stop {trail_r} dipasang "
+                              f"(dist={dist:.6f} × {TRAIL_STOP})")
+                    else:
+                        print(f"⚠️ {coin}: Gagal set trailing stop: "
+                              f"{res_ts.get('retMsg','')} (code:{res_ts['retCode']})")
+                except Exception as e:
+                    print(f"⚠️ {coin}: set_trading_stop error: {e}")
+
         if dist > 0 and not p.get('trail_engaged', False):
             if side == "Buy"  and curr_price >= entry + TRAIL_STOP * dist:
                 active_positions[coin]['trail_engaged'] = True
@@ -747,8 +768,11 @@ def run_bot():
                                 break
 
                         if not found:
-                            print(f"⏳ {coin}: Nunggu OCL touch | "
-                                  f"{len(fvg_list)} FVG kuat | "
+                            ocl_list = [f"{float(g.get('c2_close', 0)):.6g}"
+                                        for g in fvg_list if float(g.get('c2_close', 0)) > 0]
+                            ocl_str  = " / ".join(ocl_list) if ocl_list else "—"
+                            print(f"⏳ {coin}: Nunggu OCL touch @ {ocl_str} | "
+                                  f"{len(fvg_list)} FVG | "
                                   f"Harga H1: {curr_h1['close']:.6g}")
                     continue
 
