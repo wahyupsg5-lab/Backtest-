@@ -75,7 +75,7 @@ if not API_KEY or not API_SECRET:
 session = HTTP(testnet=TESTNET, api_key=API_KEY, api_secret=API_SECRET)
 
 # ── Strategy params (sinkron dengan backtest.py) ─────────────
-SL_MULT       = 3.1     # SL = SL_MULT × gap_size dari entry
+SL_MULT       = 6.2     # SL = SL_MULT × gap_size dari entry
 TRAIL_STOP    = 1.0     # trailing distance = TRAIL_STOP × dist
 TOUCH_VOL_MIN = 0.8     # touch candle volume min (× avg 20 M5 candle)
 MAX_GAP_PCT   = 0.006   # max gap_size / entry_price (FVG ≤ 0.60%)
@@ -240,13 +240,21 @@ def get_internal_gaps(df, stype, bos_idx, lookback=60):
     gaps = []
     scan_start = max(2, bos_idx - lookback)
 
-    # Pre-BOS FVG
+    # Pre-BOS FVG  (C1=i-2, C2=i-1, C3=i)
     for i in range(bos_idx - 1, scan_start, -1):
         gap = None
         if stype == "Long" and df['high'].iloc[i-2] < df['low'].iloc[i]:
+            if not (df['close'].iloc[i-2] > df['open'].iloc[i-2] and
+                    df['close'].iloc[i-1] > df['open'].iloc[i-1] and
+                    df['close'].iloc[i]   > df['open'].iloc[i]):
+                continue
             gap = {"top": df['low'].iloc[i], "bottom": df['high'].iloc[i-2], "zone": "pre"}
             gap.update(_gap_vol_fields(df, i))
         elif stype == "Short" and df['low'].iloc[i-2] > df['high'].iloc[i]:
+            if not (df['close'].iloc[i-2] < df['open'].iloc[i-2] and
+                    df['close'].iloc[i-1] < df['open'].iloc[i-1] and
+                    df['close'].iloc[i]   < df['open'].iloc[i]):
+                continue
             gap = {"top": df['low'].iloc[i-2], "bottom": df['high'].iloc[i], "zone": "pre"}
             gap.update(_gap_vol_fields(df, i))
         if gap:
@@ -257,15 +265,23 @@ def get_internal_gaps(df, stype, bos_idx, lookback=60):
             if is_fresh:
                 gaps.append(gap)
 
-    # Post-BOS FVG
+    # Post-BOS FVG  (C1=i-1, C2=i, C3=i+1)
     post_end = len(df) - 2
     for i in range(bos_idx + 1, post_end):
         if i + 1 >= len(df): continue
         gap = None
         if stype == "Long" and df['high'].iloc[i-1] < df['low'].iloc[i+1]:
+            if not (df['close'].iloc[i-1] > df['open'].iloc[i-1] and
+                    df['close'].iloc[i]   > df['open'].iloc[i]   and
+                    df['close'].iloc[i+1] > df['open'].iloc[i+1]):
+                continue
             gap = {"top": df['low'].iloc[i+1], "bottom": df['high'].iloc[i-1], "zone": "post"}
             gap.update(_gap_vol_fields(df, i + 1))
         elif stype == "Short" and df['low'].iloc[i-1] > df['high'].iloc[i+1]:
+            if not (df['close'].iloc[i-1] < df['open'].iloc[i-1] and
+                    df['close'].iloc[i]   < df['open'].iloc[i]   and
+                    df['close'].iloc[i+1] < df['open'].iloc[i+1]):
+                continue
             gap = {"top": df['low'].iloc[i-1], "bottom": df['high'].iloc[i+1], "zone": "post"}
             gap.update(_gap_vol_fields(df, i + 1))
         if gap:
@@ -295,12 +311,12 @@ def candle_touches_fvg(candle, fvg, stype):
 
 
 def _get_strong_fvgs(df_h1, stype, bos_idx, choch_level=None):
-    """FVG kuat: C3 vol > avg20H, c2_close ada, CHOCH filter, MAX_GAP_PCT filter."""
+    """FVG kuat: C3 vol > avg20H, c3_open ada, CHOCH filter, MAX_GAP_PCT filter."""
     gaps = get_internal_gaps(df_h1, stype, bos_idx)
     # Hanya FVG dengan volume kuat (C3 candle volume lebih besar dari rata-rata)
     gaps = [g for g in gaps
             if g.get('c3_vol', 0) > g.get('vol_avg20h', 0) > 0
-            and g.get('c2_close', 0) > 0]
+            and g.get('c3_open', 0) > 0]
     # Filter FVG yang straddle CHOCH
     if choch_level:
         if stype == "Long":
@@ -311,7 +327,7 @@ def _get_strong_fvgs(df_h1, stype, bos_idx, choch_level=None):
     result = []
     for g in gaps:
         gap_size = g['top'] - g['bottom']
-        ocl      = float(g.get('c2_close', g['bottom'] if stype == 'Short' else g['top']))
+        ocl      = float(g.get('c3_open', g['bottom'] if stype == 'Short' else g['top']))
         if ocl > 0 and MAX_GAP_PCT > 0 and gap_size / ocl > MAX_GAP_PCT:
             continue
         result.append(g)
@@ -613,7 +629,7 @@ def replay_h1(coin, df_h1):
     print(f"\n📊 {coin}: BOS {stype} | Swing: {swing_val:.6g} | {len(gaps)} FVG kuat")
     print(f"   ⛔ CHOCH batal: {choch_str}")
     for gi, g in enumerate(gaps):
-        ocl = g.get('c2_close', 0)
+        ocl = g.get('c3_open', 0)
         gap_size = g['top'] - g['bottom']
         print(f"   FVG {gi+1}: bot:{g['bottom']:.6g} top:{g['top']:.6g} "
               f"OCL:{ocl:.6g} gap:{gap_size/ocl*100:.3f}%")
@@ -734,7 +750,7 @@ def run_bot():
                             gap_size = float(fvg['top']) - float(fvg['bottom'])
                             if gap_size <= 0:
                                 continue
-                            ocl      = float(fvg.get('c2_close',
+                            ocl      = float(fvg.get('c3_open',
                                        fvg['bottom'] if stype == 'Short' else fvg['top']))
                             if ocl <= 0:
                                 continue
@@ -811,8 +827,8 @@ def run_bot():
                                 break
 
                         if not found:
-                            ocl_list = [f"{float(g.get('c2_close', 0)):.6g}"
-                                        for g in fvg_list if float(g.get('c2_close', 0)) > 0]
+                            ocl_list = [f"{float(g.get('c3_open', 0)):.6g}"
+                                        for g in fvg_list if float(g.get('c3_open', 0)) > 0]
                             ocl_str  = " / ".join(ocl_list) if ocl_list else "—"
                             print(f"⏳ {coin}: Nunggu OCL touch @ {ocl_str} | "
                                   f"{len(fvg_list)} FVG | "
@@ -875,7 +891,7 @@ def run_bot():
                 print(f"   ⛔ CHOCH batal: {choch_str}")
                 print(f"   {len(gaps)} FVG kuat tersedia:")
                 for i, g in enumerate(gaps):
-                    ocl      = g.get('c2_close', 0)
+                    ocl      = g.get('c3_open', 0)
                     gap_size = g['top'] - g['bottom']
                     print(f"   FVG {i+1}: bot:{g['bottom']:.6g} top:{g['top']:.6g} "
                           f"OCL:{ocl:.6g} gap:{gap_size/ocl*100:.3f}%")

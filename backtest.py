@@ -25,7 +25,7 @@ MIN_DIST_PCT    = 0.005     # minimum SL distance 0.5%
 
 # ── Test variant config (override dari luar untuk testing) ──
 ENTRY_MODE   = 'bb_sl'  # 'bb_sl'|'bb_entry'|'fvg_touch'|'fvg_touch_rev'|'fvg_rev_limit'|'idm_touch'|'fvg_confirm'|'fvg_deep'|'fvg_dip'|'fvg_strong'
-SL_MULT      = 3.1      # SL distance dari titik 0 (dalam R unit = FVG height)
+SL_MULT      = 6.2      # SL distance dari titik 0 (dalam R unit = FVG height)
 TP_MULT      = 2.0      # TP distance dari titik 0 (dalam R unit)
 ENTRY_R      = 8.0      # fvg_rev_limit: level limit entry dari titik 0 (dalam R)
 TIME_FILTER  = 0        # max candles FVG→MSS (0 = disabled)
@@ -258,15 +258,25 @@ def get_internal_gaps(df, stype, bos_idx, lookback=60):
     gaps = []
     scan_start = max(2, bos_idx - lookback)
 
-    # Pre-BOS FVG
+    # Pre-BOS FVG  (C1=i-2, C2=i-1, C3=i)
     for i in range(bos_idx - 1, scan_start, -1):
         gap = None
         if stype == "Long" and df['high'].iloc[i-2] < df['low'].iloc[i]:
+            # Warna sama: semua 3 candle bullish
+            if not (df['close'].iloc[i-2] > df['open'].iloc[i-2] and
+                    df['close'].iloc[i-1] > df['open'].iloc[i-1] and
+                    df['close'].iloc[i]   > df['open'].iloc[i]):
+                continue
             gap = {"top": df['low'].iloc[i], "bottom": df['high'].iloc[i-2], "zone": "pre"}
-            gap.update(_gap_vol_fields(df, i))   # candle 3 = i
+            gap.update(_gap_vol_fields(df, i))   # C3 = i
         elif stype == "Short" and df['low'].iloc[i-2] > df['high'].iloc[i]:
+            # Warna sama: semua 3 candle bearish
+            if not (df['close'].iloc[i-2] < df['open'].iloc[i-2] and
+                    df['close'].iloc[i-1] < df['open'].iloc[i-1] and
+                    df['close'].iloc[i]   < df['open'].iloc[i]):
+                continue
             gap = {"top": df['low'].iloc[i-2], "bottom": df['high'].iloc[i], "zone": "pre"}
-            gap.update(_gap_vol_fields(df, i))   # candle 3 = i
+            gap.update(_gap_vol_fields(df, i))   # C3 = i
         if gap:
             is_fresh = True
             for j in range(i + 1, bos_idx + 1):
@@ -277,17 +287,27 @@ def get_internal_gaps(df, stype, bos_idx, lookback=60):
             if is_fresh:
                 gaps.append(gap)
 
-    # Post-BOS FVG
+    # Post-BOS FVG  (C1=i-1, C2=i, C3=i+1)
     post_end = len(df) - 2
     for i in range(bos_idx + 1, post_end):
         if i + 1 >= len(df): continue
         gap = None
         if stype == "Long" and df['high'].iloc[i-1] < df['low'].iloc[i+1]:
+            # Warna sama: semua 3 candle bullish
+            if not (df['close'].iloc[i-1] > df['open'].iloc[i-1] and
+                    df['close'].iloc[i]   > df['open'].iloc[i]   and
+                    df['close'].iloc[i+1] > df['open'].iloc[i+1]):
+                continue
             gap = {"top": df['low'].iloc[i+1], "bottom": df['high'].iloc[i-1], "zone": "post"}
-            gap.update(_gap_vol_fields(df, i + 1))  # candle 3 = i+1
+            gap.update(_gap_vol_fields(df, i + 1))  # C3 = i+1
         elif stype == "Short" and df['low'].iloc[i-1] > df['high'].iloc[i+1]:
+            # Warna sama: semua 3 candle bearish
+            if not (df['close'].iloc[i-1] < df['open'].iloc[i-1] and
+                    df['close'].iloc[i]   < df['open'].iloc[i]   and
+                    df['close'].iloc[i+1] < df['open'].iloc[i+1]):
+                continue
             gap = {"top": df['low'].iloc[i-1], "bottom": df['high'].iloc[i+1], "zone": "post"}
-            gap.update(_gap_vol_fields(df, i + 1))  # candle 3 = i+1
+            gap.update(_gap_vol_fields(df, i + 1))  # C3 = i+1
         if gap:
             is_fresh = True
             for j in range(i + 2, len(df)):
@@ -656,7 +676,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                 if ENTRY_MODE == 'fvg_strong':
                     gaps_new = [g for g in gaps_new
                                 if g.get('c3_vol', 0) > g.get('vol_avg20h', 0) > 0
-                                and g.get('c2_close', 0) > 0]
+                                and g.get('c3_open', 0) > 0]
 
                 active_bos_key     = bos_key
                 active_gaps        = gaps_new
@@ -702,7 +722,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
             fvg_top = float(fvg['top']); fvg_bot = float(fvg['bottom'])
             # fvg_strong: trigger di OCL (C2 close), bukan zona FVG
             if ENTRY_MODE == 'fvg_strong':
-                ocl = float(fvg.get('c2_close', fvg_bot if active_stype == 'Short' else fvg_top))
+                ocl = float(fvg.get('c3_open', fvg_bot if active_stype == 'Short' else fvg_top))
                 trig_long  = ocl
                 trig_short = ocl
             else:
@@ -877,10 +897,9 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
             if gap_size <= 0:
                 c_dir_fail += 1; i += 12; continue
 
-            # Entry di OCL = C2 close (hitung dulu entry_p untuk gap% check)
-            c2_close = float(used_fvg.get('c2_close',
-                             fvg_bot if stype == 'Short' else fvg_top))
-            entry_p  = c2_close
+            # Entry di OCL = C3 open (boundary C2-C3, sisi kanan FVG)
+            entry_p = float(used_fvg.get('c3_open',
+                            fvg_bot if stype == 'Short' else fvg_top))
             if entry_p > 0 and MAX_GAP_PCT > 0 and gap_size / entry_p > MAX_GAP_PCT:
                 c_dir_fail += 1; i += 12; continue
 
