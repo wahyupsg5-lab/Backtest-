@@ -432,7 +432,7 @@ def _run():
 
     _log_msg("=" * 62)
     _trail_str = f" Trail={_TRAIL_STOP}R+Reverse" if _TRAIL_STOP > 0 else f" TP={_TP_MULT}R"
-    _log_msg(f"BACKTEST 22 COIN — {_ENTRY_MODE.upper()} SL={_SL_MULT}R{_trail_str} TouchVol≥{_TOUCH_VOL_MIN}× MaxGap≤{_MAX_GAP_PCT*100:.2f}% CoinFilter:ON | Full Year 2025 | Modal ${INITIAL_BALANCE:.0f} | Risk 1%")
+    _log_msg(f"BACKTEST {len(COINS)} COIN — {_ENTRY_MODE.upper()} SL={_SL_MULT}R{_trail_str} TouchVol≥{_TOUCH_VOL_MIN}× MaxGap≤{_MAX_GAP_PCT*100:.2f}% CoinFilter:ON | Jan 2025–Apr 2026 | Modal ${INITIAL_BALANCE:.0f} | Risk 1%")
     _log_msg(f"{len(COINS)} Coins: {', '.join(COINS)}")
     _log_msg("=" * 62)
 
@@ -711,10 +711,10 @@ BOS H1 → EMA50 Filter → FVG Touch → IDM M5 → BOS/Sweep M5 → MSS → En
 
 ---
 
-## 📊 Hasil Backtest — Full Year 2025
+## 📊 Hasil Backtest — Jan 2025–Apr 2026
 
 > Modal ${INITIAL_BALANCE:.0f} | Risk 1%/trade compound (1 pot bersama) | TP 3R | ATR Filter Adaptif
-> _{len(COINS)} Coin | Data Bybit Perpetual USDT | M5+H1 | Jan–Des 2025_
+> _{len(COINS)} Coin | Data Bybit Perpetual USDT | M5+H1 | Jan 2025–Apr 2026_
 > _(Generated: {today})_
 
 ### Per Coin (diurutkan PnL terbesar)
@@ -788,25 +788,27 @@ _CSS = """
 <style>
 *{box-sizing:border-box}
 body{font-family:'Courier New',monospace;background:#0d1117;color:#c9d1d9;
-     padding:24px 32px;max-width:1200px;margin:0 auto}
-h1{color:#58a6ff;font-size:20px;margin:0 0 6px}
-h2{color:#79c0ff;font-size:14px;margin:22px 0 8px;text-transform:uppercase;letter-spacing:.5px}
-p{margin:4px 0;font-size:13px}
-table{width:100%;border-collapse:collapse;margin:10px 0;font-size:12px}
-th{background:#161b22;color:#58a6ff;padding:8px 12px;text-align:left;
+     padding:16px;max-width:100%;margin:0 auto;overflow-x:hidden}
+h1{color:#58a6ff;font-size:16px;margin:0 0 6px}
+h2{color:#79c0ff;font-size:13px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.5px}
+p{margin:4px 0;font-size:12px}
+.tbl-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:max-content;min-width:100%;border-collapse:collapse;margin:6px 0;font-size:11px}
+th{background:#161b22;color:#58a6ff;padding:7px 10px;text-align:left;
    border-bottom:2px solid #30363d;white-space:nowrap}
-td{padding:7px 12px;border-bottom:1px solid #21262d;white-space:nowrap}
+td{padding:6px 10px;border-bottom:1px solid #21262d;white-space:nowrap}
 tr:hover td{background:#161b22}
 .g{color:#3fb950}.r{color:#f85149}.y{color:#e3b341}
 .log{background:#161b22;border:1px solid #30363d;border-radius:6px;
-     padding:14px 16px;max-height:500px;overflow-y:auto;
-     white-space:pre-wrap;font-size:11px;line-height:1.6}
-.chip{display:inline-block;padding:2px 10px;border-radius:10px;font-size:12px;font-weight:bold}
+     padding:12px;max-height:400px;overflow-y:auto;
+     white-space:pre-wrap;font-size:10px;line-height:1.6;word-break:break-all}
+.chip{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:bold}
 .chip-run{background:#1c3c5e;color:#58a6ff}
 .chip-done{background:#1a3d28;color:#3fb950}
-.note{background:#161b22;border-left:3px solid #58a6ff;padding:10px 14px;
-      border-radius:0 6px 6px 0;font-size:12px;margin:10px 0 0;line-height:1.6}
+.note{background:#161b22;border-left:3px solid #58a6ff;padding:10px 12px;
+      border-radius:0 6px 6px 0;font-size:11px;margin:10px 0 0;line-height:1.6}
 a{color:#58a6ff}
+@media(max-width:600px){h1{font-size:14px}}
 </style>
 """
 
@@ -998,30 +1000,31 @@ def _render_html() -> bytes:
 <html lang="id">
 <head>
   <meta charset="utf-8">
-  <title>Backtest 22 Coins — SMC Bot Recursive IDM</title>
+  <title>Backtest {len(COINS)} Coins — SMC Bot fvg_strong</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   {_CSS}
   {refresh}
 </head>
 <body>
-  <h1>🤖 Backtest SMC Bot — 22 Coins (Recursive IDM, Full Year 2025)</h1>
+  <h1>🤖 Backtest SMC Bot — {len(COINS)} Coins (fvg_strong)</h1>
   <p>
     <b>{n_done}/{n_total} coin selesai</b> &nbsp;|&nbsp;
     Modal: <b>${INITIAL_BALANCE:.0f}</b> &nbsp;|&nbsp;
-    Period: <b>2025-01-01 → 2025-12-31</b> &nbsp;|&nbsp;
+    Period: <b>Jan 2025 → Apr 2026</b> &nbsp;|&nbsp;
     Status: {chip}
   </p>
   {done_note}
 
   <h2>Hasil Per Coin</h2>
-  {coin_table}
+  <div class="tbl-wrap">{coin_table}</div>
 
   <h2>Analisis Win/Loss per Coin</h2>
   <p style="font-size:11px;color:#8b949e">
     Format: Direction · Entry Type · IDM depth rata-rata · MSS body rata-rata · Volume ratio rata-rata
   </p>
-  {wl_table}
+  <div class="tbl-wrap">{wl_table}</div>
 
-  {'<h2>Per Kuartal (Agregat Semua Coin)</h2>' + q_table if q_table else ''}
+  {'<h2>Per Kuartal (Agregat Semua Coin)</h2><div class="tbl-wrap">' + q_table + '</div>' if q_table else ''}
 
   <div class="note">
     💡 <b>PnL Compound</b> = kontribusi tiap coin ke 1 pot bersama (risk 1% dari balance live per trade).
