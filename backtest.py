@@ -681,11 +681,18 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                         gaps_new = [g for g in gaps_new if g['bottom'] >= choch_new]
                     else:
                         gaps_new = [g for g in gaps_new if g['top'] <= choch_new]
-                # fvg_strong: hanya pakai FVG kuat (C3 vol > avg 20H)
+                # fvg_strong/fvg_sbr/fvg_50pct: hanya pakai FVG kuat (C3 vol > avg 20H)
                 if ENTRY_MODE == 'fvg_strong':
                     gaps_new = [g for g in gaps_new
                                 if g.get('c3_vol', 0) > g.get('vol_avg20h', 0) > 0
                                 and g.get('c3_open', 0) > 0]
+                elif ENTRY_MODE == 'fvg_sbr':
+                    gaps_new = [g for g in gaps_new
+                                if g.get('c3_vol', 0) > g.get('vol_avg20h', 0) > 0
+                                and g.get('c1_close', 0) > 0]
+                elif ENTRY_MODE == 'fvg_50pct':
+                    gaps_new = [g for g in gaps_new
+                                if g.get('c3_vol', 0) > g.get('vol_avg20h', 0) > 0]
 
                 active_bos_key     = bos_key
                 active_gaps        = gaps_new
@@ -988,6 +995,18 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                 if stype == "Long"  and float(ck['low'])  <= entry_limit: fill_idx = k; break
                 if stype == "Short" and float(ck['high']) >= entry_limit: fill_idx = k; break
             if fill_idx is None:
+                c_dir_fail += 1; i += 12; continue
+
+            # Touch volume filter di fill candle (sinkron dengan live bot SBR_MODE)
+            if 'vol' in df_m5_full.columns:
+                t_vol   = float(df_m5_full.iloc[fill_idx]['vol'])
+                avg_s   = max(0, fill_idx - 20)
+                avg_tv  = float(df_m5_full.iloc[avg_s:fill_idx]['vol'].mean()) \
+                          if fill_idx > 0 else 0.0
+                _touch_vol_ratio = round(t_vol / avg_tv, 4) if avg_tv > 0 else 0.0
+            else:
+                _touch_vol_ratio = 0.0
+            if TOUCH_VOL_MIN > 0 and 0 < _touch_vol_ratio < TOUCH_VOL_MIN:
                 c_dir_fail += 1; i += 12; continue
 
             tp_nat = (entry_limit + 1000 * d) if stype == "Long" else (entry_limit - 1000 * d)

@@ -364,7 +364,7 @@ def place_market_order(symbol, side, entry, sl, trail_dist):
             print(f"⚠️ {symbol}: dist entry-SL = 0, skip.")
             return None
 
-        min_dist = entry * 0.005
+        min_dist = entry * 0.002   # 0.2% — sinkron dengan outer check dan backtest MIN_DIST_PCT
         if dist < min_dist:
             dist = min_dist
             sl   = entry - dist if side == "Buy" else entry + dist
@@ -556,12 +556,12 @@ def check_trailing_sl(coin):
                     print(f"⚠️ {coin}: set_trading_stop error: {e}")
 
         if dist > 0 and not p.get('trail_engaged', False):
-            if side == "Buy"  and curr_price >= entry + TRAIL_STOP * dist:
+            if side == "Buy"  and curr_price >= entry + dist:
                 active_positions[coin]['trail_engaged'] = True
-                print(f"✅ {coin}: Trail engaged @ {curr_price:.6f} (BE+)")
-            elif side == "Sell" and curr_price <= entry - TRAIL_STOP * dist:
+                print(f"✅ {coin}: Trail engaged @ {curr_price:.6f} (BE+ 1R)")
+            elif side == "Sell" and curr_price <= entry - dist:
                 active_positions[coin]['trail_engaged'] = True
-                print(f"✅ {coin}: Trail engaged @ {curr_price:.6f} (BE+)")
+                print(f"✅ {coin}: Trail engaged @ {curr_price:.6f} (BE+ 1R)")
     except Exception:
         pass
 
