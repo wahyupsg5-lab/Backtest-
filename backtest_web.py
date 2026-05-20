@@ -258,11 +258,8 @@ def _diagnose(symbol: str, df: pd.DataFrame, atr_thresh: float):
 
 # ── Helper: quarter + compound ────────────────────────────────────────────
 def _quarter_of(ts) -> str:
-    m = ts.month
-    if m <= 3:  return 'Q1'
-    if m <= 6:  return 'Q2'
-    if m <= 9:  return 'Q3'
-    return 'Q4'
+    q = (ts.month - 1) // 3 + 1
+    return f'Q{q} {ts.year}'
 
 
 def _compound_replay(all_trades: list) -> tuple:
@@ -281,33 +278,39 @@ def _compound_replay(all_trades: list) -> tuple:
     bal = INITIAL_BALANCE
     replayed = []
     for t in sorted_trades:
+        if bal <= 0:
+            replayed.append({**t, 'compound_pnl': 0.0, 'compound_bal': bal})
+            continue
         risk    = bal * 0.01
         sl_dist = abs(t['entry'] - t['sl'])
         if sl_dist == 0 or t['entry'] == 0:
             replayed.append({**t, 'compound_pnl': 0.0, 'compound_bal': bal})
             continue
-        # Gunakan R aktual dari exit price (bukan hardcode 3.0/1.0)
-        # sehingga benar untuk semua ENTRY_MODE (fvg_touch TP=1.5R, dll)
         if t['type'] == 'Long':
             r_mult = (t['exit_price'] - t['entry']) / sl_dist
         else:
             r_mult = (t['entry'] - t['exit_price']) / sl_dist
         pnl  = r_mult * risk
         bal += pnl
+        if bal < 0:
+            bal = 0.0
         replayed.append({**t, 'compound_pnl': pnl, 'compound_bal': bal})
     return replayed, bal
 
 
 def _calc_quarters_compound(replayed: list) -> dict:
     """Statistik per kuartal dari compound replay (sudah sorted by entry_ts)."""
-    by_q = {'Q1': [], 'Q2': [], 'Q3': [], 'Q4': []}
+    labels = [label for label, _, _ in _QUARTERS]
+    by_q   = {label: [] for label in labels}
     for t in replayed:
-        by_q[_quarter_of(t['entry_ts'])].append(t)
+        q = _quarter_of(t['entry_ts'])
+        if q in by_q:
+            by_q[q].append(t)
 
     stats = {}
     running = INITIAL_BALANCE
-    for q in ('Q1', 'Q2', 'Q3', 'Q4'):
-        trades  = by_q[q]
+    for label in labels:
+        trades  = by_q[label]
         q_start = running
         q_pnl   = sum(t['compound_pnl'] for t in trades)
         running += q_pnl
@@ -317,7 +320,7 @@ def _calc_quarters_compound(replayed: list) -> dict:
         gw = sum(t['compound_pnl'] for t in trades if t['compound_pnl'] > 0)
         gl = abs(sum(t['compound_pnl'] for t in trades if t['compound_pnl'] < 0))
         pf = gw / gl if gl > 0 else (99.0 if gw > 0 else 0.0)
-        stats[q] = {
+        stats[label] = {
             'trades': n, 'wins': wins, 'wr': wr,
             'pnl': q_pnl, 'pf': pf,
             'start_bal': q_start, 'end_bal': running,
@@ -575,8 +578,18 @@ def _run():
         })
         all_trades_list.extend(trades)
 
+        # Progressive compound: update setiap kali 1 coin selesai
+        rep_tmp, cpnd_tmp = _compound_replay(all_trades_list)
+        cpnl_tmp = {}
+        for _t in rep_tmp:
+            cpnl_tmp[_t['symbol']] = cpnl_tmp.get(_t['symbol'], 0.0) + _t['compound_pnl']
+        qs_tmp = _calc_quarters_compound(rep_tmp)
+        for r in results:
+            r['compound_pnl'] = cpnl_tmp.get(r['symbol'], 0.0)
         with _lock:
-            _results = list(results)   # progress update sementara
+            _results            = list(results)
+            _quarter_stats      = qs_tmp
+            _compound_final_bal = cpnd_tmp
 
     # ── Compound replay: 1 pot bersama, risk 1% per trade ───────────────
     _log_msg(f"\n{'='*62}")
