@@ -1,4 +1,4 @@
-# SMC Trading Bot
+# SMC Trading Bot..
 
 Automated trading bot using **Smart Money Concepts (SMC)** on Bybit USDT Perpetual Futures.
 
