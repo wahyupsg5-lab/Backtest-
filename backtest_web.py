@@ -1,6 +1,6 @@
 """
 backtest_web.py — Backtest SEMUA coin bot live via Bybit API
-22 Coins | Full Year 2025 | Modal $10 | Risk 1% compound | fvg_rev_limit entry=8.5R SL=9.5R TP=-8.5R
+23 Coins | Jan 2025 – Apr 2026 | Modal $10 | Risk 1% compound | fvg_strong
 
 Deploy ke Railway:
   Start command → python backtest_web.py
@@ -48,16 +48,18 @@ COINS = [
     'STXUSDT', 'ATOMUSDT', 'APEUSDT', 'LDOUSDT', 'ALGOUSDT',
 ]
 
-# 2025-01-01 00:00:00 UTC  →  2025-12-31 23:59:59 UTC  (dalam ms)
+# 2025-01-01 00:00:00 UTC  →  2026-04-30 23:59:59 UTC  (dalam ms)
 _START_MS = 1735689600000
-_END_MS   = 1767225599999
+_END_MS   = 1777593599000
 
 # Batas kuartal (inklusif)
 _QUARTERS = [
-    ('Q1', pd.Timestamp('2025-01-01'), pd.Timestamp('2025-03-31 23:59:59')),
-    ('Q2', pd.Timestamp('2025-04-01'), pd.Timestamp('2025-06-30 23:59:59')),
-    ('Q3', pd.Timestamp('2025-07-01'), pd.Timestamp('2025-09-30 23:59:59')),
-    ('Q4', pd.Timestamp('2025-10-01'), pd.Timestamp('2025-12-31 23:59:59')),
+    ('Q1 2025', pd.Timestamp('2025-01-01'), pd.Timestamp('2025-03-31 23:59:59')),
+    ('Q2 2025', pd.Timestamp('2025-04-01'), pd.Timestamp('2025-06-30 23:59:59')),
+    ('Q3 2025', pd.Timestamp('2025-07-01'), pd.Timestamp('2025-09-30 23:59:59')),
+    ('Q4 2025', pd.Timestamp('2025-10-01'), pd.Timestamp('2025-12-31 23:59:59')),
+    ('Q1 2026', pd.Timestamp('2026-01-01'), pd.Timestamp('2026-03-31 23:59:59')),
+    ('Q2 2026', pd.Timestamp('2026-04-01'), pd.Timestamp('2026-04-30 23:59:59')),
 ]
 
 # ── Global state ──────────────────────────────────────────────────────────
