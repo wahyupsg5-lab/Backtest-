@@ -75,7 +75,7 @@ if not API_KEY or not API_SECRET:
 session = HTTP(testnet=TESTNET, api_key=API_KEY, api_secret=API_SECRET)
 
 # ── Strategy params (sinkron dengan backtest.py) ─────────────
-SL_MULT       = 6.2     # SL = SL_MULT × gap_size dari entry
+SL_MULT       = 3.1     # SL = SL_MULT × gap_size dari entry
 TRAIL_STOP    = 1.0     # trailing distance = TRAIL_STOP × dist
 TOUCH_VOL_MIN = 0.8     # touch candle volume min (× avg 20 M5 candle)
 MAX_GAP_PCT   = 0.006   # max gap_size / entry_price (FVG ≤ 0.60%)

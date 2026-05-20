@@ -25,7 +25,7 @@ MIN_DIST_PCT    = 0.005     # minimum SL distance 0.5%
 
 # ── Test variant config (override dari luar untuk testing) ──
 ENTRY_MODE   = 'bb_sl'  # 'bb_sl'|'bb_entry'|'fvg_touch'|'fvg_touch_rev'|'fvg_rev_limit'|'idm_touch'|'fvg_confirm'|'fvg_deep'|'fvg_dip'|'fvg_strong'
-SL_MULT      = 6.2      # SL distance dari titik 0 (dalam R unit = FVG height)
+SL_MULT      = 3.1      # SL distance dari titik 0 (dalam R unit = FVG height)
 TP_MULT      = 2.0      # TP distance dari titik 0 (dalam R unit)
 ENTRY_R      = 8.0      # fvg_rev_limit: level limit entry dari titik 0 (dalam R)
 TIME_FILTER  = 0        # max candles FVG→MSS (0 = disabled)
@@ -507,11 +507,12 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance, _skip_reason
             if adv > max_float:
                 max_float = adv
             if TRAIL_STOP > 0 and h > peak:
-                peak     = h
-                new_tsl  = peak - TRAIL_STOP * dist
-                trail_sl = max(trail_sl, new_tsl)
-                if trail_sl >= entry:
-                    trail_engaged = True
+                peak = h
+                if peak >= entry + dist:          # BE trigger: +3.1R
+                    new_tsl  = max(entry, peak - TRAIL_STOP * dist)
+                    trail_sl = max(trail_sl, new_tsl)
+                    if trail_sl >= entry:
+                        trail_engaged = True
             cur_sl = trail_sl if TRAIL_STOP > 0 else sl
             if l <= cur_sl:
                 exit_p = cur_sl; exit_ts = c['ts']; outcome = 'sl'; break
@@ -522,11 +523,12 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance, _skip_reason
             if adv > max_float:
                 max_float = adv
             if TRAIL_STOP > 0 and l < peak:
-                peak     = l
-                new_tsl  = peak + TRAIL_STOP * dist
-                trail_sl = min(trail_sl, new_tsl)
-                if trail_sl <= entry:
-                    trail_engaged = True
+                peak = l
+                if peak <= entry - dist:          # BE trigger: -3.1R
+                    new_tsl  = min(entry, peak + TRAIL_STOP * dist)
+                    trail_sl = min(trail_sl, new_tsl)
+                    if trail_sl <= entry:
+                        trail_engaged = True
             cur_sl = trail_sl if TRAIL_STOP > 0 else sl
             if h >= cur_sl:
                 exit_p = cur_sl; exit_ts = c['ts']; outcome = 'sl'; break
