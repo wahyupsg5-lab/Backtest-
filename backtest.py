@@ -537,10 +537,9 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance, _skip_reason
                 max_float = adv
             if TRAIL_STOP > 0 and h > peak:
                 peak = h
-                # Trail SL mengikuti peak dari candle pertama (sinkron Bybit native trail)
-                new_tsl  = peak - TRAIL_STOP * dist
-                trail_sl = max(trail_sl, new_tsl)
-                if peak >= entry + dist:          # trail_engaged: harga capai +1R (sinkron live bot)
+                if peak >= entry + dist:          # trail aktif setelah +1R profit
+                    new_tsl  = max(entry, peak - TRAIL_STOP * dist)
+                    trail_sl = max(trail_sl, new_tsl)
                     trail_engaged = True
             cur_sl = trail_sl if TRAIL_STOP > 0 else sl
             if l <= cur_sl:
@@ -553,10 +552,9 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance, _skip_reason
                 max_float = adv
             if TRAIL_STOP > 0 and l < peak:
                 peak = l
-                # Trail SL mengikuti peak dari candle pertama (sinkron Bybit native trail)
-                new_tsl  = peak + TRAIL_STOP * dist
-                trail_sl = min(trail_sl, new_tsl)
-                if peak <= entry - dist:          # trail_engaged: harga capai -1R (sinkron live bot)
+                if peak <= entry - dist:          # trail aktif setelah -1R profit
+                    new_tsl  = min(entry, peak + TRAIL_STOP * dist)
+                    trail_sl = min(trail_sl, new_tsl)
                     trail_engaged = True
             cur_sl = trail_sl if TRAIL_STOP > 0 else sl
             if h >= cur_sl:
