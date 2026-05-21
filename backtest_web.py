@@ -72,6 +72,7 @@ _results            = []          # per-coin
 _quarter_stats      = {}          # Q1..Q4 compound
 _all_trades         = []          # semua trade (compound replayed)
 _compound_final_bal = INITIAL_BALANCE
+_overall_avg_rr     = 0.0         # avg R:R keseluruhan semua coin
 
 
 def _ts():
@@ -613,7 +614,17 @@ def _run():
     wr_all    = total_w / total_n * 100 if total_n else 0
     cpnl_tot  = compound_final - INITIAL_BALANCE
 
-    _log_msg(f"TOTAL: {total_n} trade | WR:{wr_all:.1f}% | "
+    # Overall avg R:R dari semua trade win semua coin
+    _all_rr = []
+    for t in all_trades_list:
+        if t.get('outcome') != 'tp': continue
+        ep = t.get('entry', 0); sl_p = t.get('sl', 0); xp = t.get('exit_price', 0)
+        sl_dist = abs(ep - sl_p)
+        if ep and sl_dist > 0 and xp:
+            _all_rr.append(abs(xp - ep) / sl_dist)
+    overall_rr = round(sum(_all_rr) / len(_all_rr), 2) if _all_rr else 0.0
+
+    _log_msg(f"TOTAL: {total_n} trade | WR:{wr_all:.1f}% | Avg R:R:{overall_rr:.2f}:1 | "
              f"Compound: ${INITIAL_BALANCE:.2f} → ${compound_final:.2f} "
              f"(+${cpnl_tot:.2f}, +{cpnl_tot/INITIAL_BALANCE*100:.0f}% ROI)")
     for q, s in qs.items():
@@ -627,6 +638,7 @@ def _run():
         _all_trades          = list(replayed)
         _compound_final_bal  = compound_final
         _results             = list(results)
+        _overall_avg_rr      = overall_rr
 
 
 # ── README markdown generator ─────────────────────────────────────────────
@@ -636,6 +648,7 @@ def _gen_readme() -> str:
         qs           = dict(_quarter_stats)
         phase        = _phase
         final_bal    = _compound_final_bal
+        overall_rr   = _overall_avg_rr
 
     if phase == 'running':
         return "# Backtest masih berjalan, coba lagi nanti…\n"
@@ -659,17 +672,20 @@ def _gen_readme() -> str:
         cpnl  = r.get('compound_pnl', r['pnl'])
         sign  = '+' if cpnl >= 0 else ''
         roi_c = cpnl / INITIAL_BALANCE * 100
+        rr_c = r.get('avg_rr', 0.0)
+        rr_s = f"{rr_c:.2f}:1" if rr_c > 0 else "—"
         coin_rows += (
             f"| {sym} | {r['trades']} | {r['wr']:.0f}% | "
             f"{sign}${cpnl:.2f} | {sign}{roi_c:.0f}% | {r['max_dd']:.1f}% | "
-            f"{r['pf']:.2f} | {r['p25_atr']:.4f} |\n"
+            f"{r['pf']:.2f} | {rr_s} | {r['p25_atr']:.4f} |\n"
         )
 
     total_sign = '+' if cpnl_tot >= 0 else ''
     roi_total_sign = '+' if roi_all >= 0 else ''
+    rr_tot_str = f"**{overall_rr:.2f}:1**" if overall_rr > 0 else "—"
     coin_rows += (
         f"| **TOTAL** | **{total_n}** | **{wr_all:.0f}%** | "
-        f"**{total_sign}${cpnl_tot:.2f}** | **{roi_total_sign}{roi_all:.0f}%** | — | **{pf_all:.2f}** | — |\n"
+        f"**{total_sign}${cpnl_tot:.2f}** | **{roi_total_sign}{roi_all:.0f}%** | — | **{pf_all:.2f}** | {rr_tot_str} |\n"
     )
 
     # Win/loss analysis — per coin + total keseluruhan
@@ -737,8 +753,8 @@ BOS H1 → FVG Kuat (C3 vol > avg20H, 3 candle warna sama) → OCL Touch M5
 
 ### Per Coin (diurutkan PnL terbesar)
 
-| Coin | Trade | WR% | PnL ($) | ROI% | MaxDD% | PF | ATR P25 |
-|------|------:|----:|--------:|-----:|-------:|---:|--------:|
+| Coin | Trade | WR% | PnL ($) | ROI% | MaxDD% | PF | Avg R:R | ATR P25 |
+|------|------:|----:|--------:|-----:|-------:|---:|--------:|--------:|
 {coin_rows}
 
 **${INITIAL_BALANCE:.2f} → ${final_bal:.2f} dalam setahun (+{roi_all:.0f}% ROI)**
@@ -838,6 +854,7 @@ def _render_html() -> bytes:
         res_cp   = list(_results)
         qs       = dict(_quarter_stats)
         cmp_bal  = _compound_final_bal
+        overall_rr = _overall_avg_rr
 
     refresh = '<meta http-equiv="refresh" content="8">' if phase == 'running' else ''
     chip    = ('<span class="chip chip-run">⏳ Running…</span>' if phase == 'running'
@@ -905,6 +922,8 @@ def _render_html() -> bytes:
         nl_tot    = total_loss
         sdrift_tot = nl_tot - stp_tot - schoch_tot
         choch_tot_pct = schoch_tot / nl_tot * 100 if nl_tot else 0
+        rr_tot_c = 'g' if overall_rr >= 2.0 else ('y' if overall_rr >= 1.5 else 'r')
+        rr_tot_s = f'{overall_rr:.2f}:1' if overall_rr > 0 else '—'
         coin_rows += (
             f'<tr style="border-top:2px solid #30363d;font-weight:bold">'
             f'<td>TOTAL ({len(res_cp)} coin)</td>'
@@ -912,7 +931,8 @@ def _render_html() -> bytes:
             f'<td class="{"g" if wr_tot>=55 else "y"}">{wr_tot:.1f}%</td>'
             f'<td class="{"g" if total_cpnl>=0 else "r"}">{sign}${total_cpnl:.2f}</td>'
             f'<td class="{"g" if total_cpnl>=0 else "r"}">{sign}{roi_tot:.0f}%</td>'
-            f'<td>—</td><td>—</td><td>—</td>'
+            f'<td>—</td><td>—</td>'
+            f'<td class="{rr_tot_c}">{rr_tot_s}</td>'
             f'<td><small>TP:{stp_tot} CH:{schoch_tot} Dr:{sdrift_tot}</small></td>'
             f'<td>{choch_tot_pct:.0f}%</td>'
             f'<td>—</td></tr>\n'
