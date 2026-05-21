@@ -53,45 +53,64 @@ WAIT_FVG_TOUCH → WAIT_IDM_TOUCH → WAIT_BOS_BREAK → WAIT_IDM_TOUCH → WAIT
 - Leverage: otomatis sesuai limit coin, maks 10×
 - Fee: 0.055% per sisi (Bybit taker)
 
-### SYMBOLS — 22 coin aktif:
+### SYMBOLS — 35 coin aktif:
 ```python
 SYMBOLS = [
-    # Core
-    'XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT', 'USUALUSDT',
-    '1000PEPEUSDT', 'WIFUSDT', 'PENGUUSDT', 'PNUTUSDT',
-    'AVAXUSDT', 'ONDOUSDT', 'EIGENUSDT', 'LINKUSDT', 'VIRTUALUSDT', 'ORCAUSDT',
-    # Rehabilitasi (dibuang di strategi lama, layak di recursive IDM)
-    'DOGEUSDT', 'ARBUSDT', 'NEARUSDT', 'STORJUSDT', 'ENAUSDT', 'ADAUSDT',
-    # Baru
-    'SHIB1000USDT',
+    # Batch 1 (21 coin)
+    'XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT',
+    '1000PEPEUSDT',
+    'ONDOUSDT', 'EIGENUSDT', 'VIRTUALUSDT',
+    'ENAUSDT', 'SHIB1000USDT',
+    'JUPUSDT', 'SEIUSDT', 'OPUSDT',
+    'STXUSDT', 'APEUSDT', 'ALGOUSDT',
+    'ORCAUSDT', 'XRPUSDT', 'XAUTUSDT', 'FARTCOINUSDT', 'TAOUSDT',
+    # Batch 2 lolos filter (14 coin)
+    'SOLUSDT', 'SUIUSDT', 'TIAUSDT',
+    'AAVEUSDT', 'GALAUSDT', 'IMXUSDT', 'GMXUSDT',
+    'HBARUSDT', 'SANDUSDT', 'AXSUSDT',
+    'LTCUSDT', 'DYDXUSDT', 'FLOWUSDT', 'ICPUSDT',
 ]
 ```
 
 ### ATR Filter Adaptif (threshold per coin):
 ```python
 ATR_THRESHOLD = {
-    'XVGUSDT'       : 0.0030,   # P25=0.303%
-    '1000PEPEUSDT'  : 0.0031,   # P25=0.306%
-    '1000BONKUSDT'  : 0.0035,   # P25=0.348%
-    'BELUSDT'       : 0.0024,   # P25=0.238%
-    'USUALUSDT'     : 0.0034,   # P25=0.340%
-    'BERAUSDT'      : 0.0032,   # P25=0.322%
-    'WIFUSDT'       : 0.0038,   # P25=0.378%
-    'PENGUUSDT'     : 0.0040,   # P25=0.397%
-    'PNUTUSDT'      : 0.0036,   # P25=0.357%
-    'AVAXUSDT'      : 0.0025,   # P25=0.251%
-    'ONDOUSDT'      : 0.0027,   # P25=0.270%
-    'EIGENUSDT'     : 0.0037,   # P25=0.369%
-    'LINKUSDT'      : 0.0025,   # P25=0.253%
-    'VIRTUALUSDT'   : 0.0040,   # P25=0.402%
-    'ORCAUSDT'      : 0.0024,   # P25=0.237%
-    'DOGEUSDT'      : 0.0024,   # P25=0.242%
-    'ARBUSDT'       : 0.0028,   # P25=0.279%
-    'NEARUSDT'      : 0.0029,   # P25=0.287%
-    'STORJUSDT'     : 0.0017,   # P25=0.172%
-    'ENAUSDT'       : 0.0039,   # P25=0.388%
-    'ADAUSDT'       : 0.0025,   # P25=0.247%
-    'SHIB1000USDT'  : 0.0020,   # P25=0.197%
+    # ATR P25 dari backtest fvg_sbr Jan2025–Apr2026
+    'XVGUSDT'       : 0.0028,   # P25=0.283%
+    'BELUSDT'       : 0.0021,   # P25=0.214%
+    '1000BONKUSDT'  : 0.0031,   # P25=0.308%
+    'BERAUSDT'      : 0.0031,   # P25=0.305%
+    '1000PEPEUSDT'  : 0.0029,   # P25=0.292%
+    'ONDOUSDT'      : 0.0025,   # P25=0.254%
+    'EIGENUSDT'     : 0.0033,   # P25=0.331%
+    'VIRTUALUSDT'   : 0.0036,   # P25=0.363%
+    'ENAUSDT'       : 0.0035,   # P25=0.348%
+    'SHIB1000USDT'  : 0.0019,   # P25=0.188%
+    'JUPUSDT'       : 0.0028,   # P25=0.278%
+    'SEIUSDT'       : 0.0025,   # P25=0.250%
+    'OPUSDT'        : 0.0028,   # P25=0.277%
+    'STXUSDT'       : 0.0023,   # P25=0.229%
+    'APEUSDT'       : 0.0024,   # P25=0.241%
+    'ALGOUSDT'      : 0.0023,   # P25=0.228%
+    'ORCAUSDT'      : 0.0021,   # P25=0.214%
+    'XRPUSDT'       : 0.0018,   # P25=0.185%
+    'XAUTUSDT'      : 0.0003,   # P25=0.027%
+    'FARTCOINUSDT'  : 0.0050,   # P25=0.503%
+    'TAOUSDT'       : 0.0031,   # P25=0.313%
+    'SOLUSDT'       : 0.0022,   # P25=0.217%
+    'SUIUSDT'       : 0.0026,   # P25=0.263%
+    'TIAUSDT'       : 0.0030,   # P25=0.298%
+    'AAVEUSDT'      : 0.0026,   # P25=0.259%
+    'GALAUSDT'      : 0.0028,   # P25=0.278%
+    'IMXUSDT'       : 0.0028,   # P25=0.276%
+    'GMXUSDT'       : 0.0020,   # P25=0.203%
+    'HBARUSDT'      : 0.0022,   # P25=0.217%
+    'SANDUSDT'      : 0.0022,   # P25=0.220%
+    'AXSUSDT'       : 0.0023,   # P25=0.231%
+    'LTCUSDT'       : 0.0018,   # P25=0.178%
+    'DYDXUSDT'      : 0.0026,   # P25=0.264%
+    'FLOWUSDT'      : 0.0020,   # P25=0.200%
+    'ICPUSDT'       : 0.0023,   # P25=0.231%
 }
 ```
 > Threshold = P25 ATR historis → 75% waktu lolos filter, 25% waktu skip (sideways)
@@ -127,7 +146,10 @@ python backtest_web.py   # buka Railway domain untuk lihat progress
 ### Sinkronisasi backtest ↔ live bot:
 | Komponen | backtest.py | bott_v4.py |
 |----------|------------|-----------|
-| Strategy | Recursive IDM (for loop max 8 depth) | State machine WAIT_IDM→WAIT_BOS→WAIT_IDM→WAIT_MSS |
+| Strategy | fvg_sbr (entry C1.close SBR zone) | fvg_sbr (SBR_MODE=True) |
+| Entry | C1.close (SBR/RBS level) | sbr_lvl = c1_close |
+| SL | C1.low/high ± 10% gap buffer | SL sama, market order |
+| Trail stop | aktif setelah +1R (threshold-based) | activePrice = entry+dist (Bybit) |
 | ATR window | 20 candle include MSS | get_data(limit=20) |
 | Volume window | 20 candle include MSS | tail(20) |
 | MSS strength | body/range ≥ 30% | body/range ≥ 30% |
@@ -178,57 +200,77 @@ print(f'P25={p25:.3f}%')
 
 ## Hasil Backtest Terkini
 
-**Full Year 2025 | Modal $10 | Risk 1% compound | TP 3R | 22 Coin | Recursive IDM**
+**Jan 2025 → Apr 2026 | Modal $10 | Risk 1% compound | Trail 0.15R aktif +1R | 35 Coin | fvg_sbr**
 
-| Coin | Trade | WR% | PnL Compound | ROI% | MaxDD% | PF |
-|------|------:|----:|-------------:|-----:|-------:|---:|
-| PENGUUSDT | 64 | 50.0% | +$3,491 | +34915% | 7.6% | 2.44 |
-| USUALUSDT | 53 | 43.4% | +$2,889 | +28899% | 7.2% | 1.92 |
-| DOGEUSDT | 34 | 55.9% | +$2,402 | +24024% | 5.7% | 3.17 |
-| VIRTUALUSDT | 58 | 48.3% | +$2,197 | +21972% | 5.5% | 2.27 |
-| 1000BONKUSDT | 57 | 57.9% | +$2,100 | +21007% | 3.6% | 3.02 |
-| SHIB1000USDT | 35 | 42.9% | +$1,944 | +19445% | 8.9% | 1.81 |
-| EIGENUSDT | 55 | 41.8% | +$1,513 | +15134% | 12.1% | 1.82 |
-| XVGUSDT | 46 | 43.5% | +$1,459 | +14597% | 5.7% | 1.90 |
-| ARBUSDT | 43 | 44.2% | +$1,303 | +13036% | 6.6% | 1.89 |
-| 1000PEPEUSDT | 60 | 41.7% | +$1,228 | +12286% | 6.0% | 1.74 |
-| BERAUSDT | 51 | 45.1% | +$1,203 | +12040% | 3.5% | 1.96 |
-| NEARUSDT | 42 | 42.9% | +$1,191 | +11914% | 5.1% | 1.83 |
-| STORJUSDT | 29 | 41.4% | +$1,181 | +11819% | 3.9% | 1.70 |
-| BELUSDT | 38 | 36.8% | +$1,004 | +10045% | 5.1% | 1.44 |
-| ADAUSDT | 30 | 40.0% | +$729 | +7299% | 5.3% | 1.58 |
-| LINKUSDT | 32 | 40.6% | +$289 | +2898% | 4.6% | 1.63 |
-| ONDOUSDT | 41 | 36.6% | +$242 | +2429% | 5.7% | 1.39 |
-| WIFUSDT | 74 | 43.2% | +$237 | +2374% | 7.5% | 1.78 |
-| ENAUSDT | 68 | 38.2% | +$23 | +233% | 5.7% | 1.50 |
-| PNUTUSDT | 61 | 52.5% | +$35 | +356% | 7.8% | 2.54 |
-| ORCAUSDT | 36 | 36.1% | +$97 | +978% | 10.9% | 1.39 |
-| AVAXUSDT | 34 | 47.1% | -$89 | -893% | 6.3% | 2.05 |
-| **TOTAL** | **1041** | **44.5%** | **+$26,680** | **+266,809%** | — | — |
+| Coin | Trade | WR% | PnL Compound | ROI% | MaxDD% | PF | Avg R:R |
+|------|------:|----:|-------------:|-----:|-------:|---:|--------:|
+| JUPUSDT | 66 | 62.1% | +$10,553 | +105527% | 4.8% | 1.81 | 1.39:1 |
+| TAOUSDT | 51 | 74.5% | +$9,988 | +99881% | 2.1% | 3.13 | 1.29:1 |
+| ENAUSDT | 79 | 72.2% | +$6,011 | +60109% | 4.3% | 2.29 | 1.09:1 |
+| SANDUSDT | 59 | 62.7% | +$6,461 | +64605% | 6.7% | 1.47 | 1.11:1 |
+| FLOWUSDT | 66 | 65.2% | +$6,782 | +67815% | 2.6% | 2.02 | 1.36:1 |
+| OPUSDT | 41 | 68.3% | +$6,827 | +68270% | 3.4% | 1.80 | 1.05:1 |
+| FARTCOINUSDT | 58 | 62.1% | +$5,568 | +55684% | 5.4% | 1.71 | 1.22:1 |
+| ORCAUSDT | 47 | 63.8% | +$5,734 | +57336% | 4.3% | 2.56 | 1.72:1 |
+| XRPUSDT | 68 | 63.2% | +$5,193 | +51932% | 3.3% | 1.55 | 1.26:1 |
+| SUIUSDT | 67 | 71.6% | +$5,168 | +51679% | 2.8% | 2.65 | 1.35:1 |
+| APEUSDT | 52 | 63.5% | +$4,683 | +46826% | 5.0% | 1.79 | 1.34:1 |
+| DYDXUSDT | 51 | 56.9% | +$4,102 | +41023% | 6.4% | 1.43 | 1.34:1 |
+| ALGOUSDT | 69 | 65.2% | +$4,002 | +40020% | 3.7% | 1.79 | 1.25:1 |
+| STXUSDT | 51 | 68.6% | +$3,064 | +30637% | 2.1% | 2.03 | 1.21:1 |
+| TIAUSDT | 53 | 66.0% | +$3,279 | +32792% | 6.5% | 1.57 | 1.00:1 |
+| XVGUSDT | 48 | 64.6% | +$3,209 | +32089% | 4.3% | 1.84 | 1.24:1 |
+| IMXUSDT | 54 | 61.1% | +$3,183 | +31834% | 4.8% | 1.51 | 1.17:1 |
+| ONDOUSDT | 69 | 55.1% | +$3,258 | +32577% | 3.7% | 1.29 | 1.36:1 |
+| AAVEUSDT | 34 | 67.6% | +$3,006 | +30063% | 2.9% | 2.04 | 1.25:1 |
+| SHIB1000USDT | 54 | 61.1% | +$2,958 | +29578% | 7.3% | 1.31 | 1.20:1 |
+| 1000PEPEUSDT | 65 | 63.1% | +$2,790 | +27896% | 4.2% | 1.51 | 1.11:1 |
+| ICPUSDT | 64 | 64.1% | +$2,636 | +26356% | 5.8% | 1.56 | 1.08:1 |
+| 1000BONKUSDT | 41 | 68.3% | +$1,774 | +17739% | 3.2% | 2.06 | 1.17:1 |
+| XAUTUSDT | 32 | 56.2% | +$1,586 | +15861% | 3.6% | 1.26 | 1.77:1 |
+| AXSUSDT | 62 | 62.9% | +$1,614 | +16142% | 3.6% | 1.72 | 1.24:1 |
+| GALAUSDT | 69 | 66.7% | +$1,581 | +15812% | 2.4% | 2.19 | 1.30:1 |
+| SOLUSDT | 69 | 68.1% | +$1,352 | +13521% | 2.6% | 2.07 | 1.34:1 |
+| GMXUSDT | 64 | 65.6% | +$1,325 | +13248% | 4.1% | 2.51 | 1.75:1 |
+| BELUSDT | 56 | 62.5% | +$1,072 | +10722% | 5.0% | 1.88 | 1.45:1 |
+| BERAUSDT | 44 | 61.4% | +$1,096 | +10960% | 5.8% | 1.55 | 1.18:1 |
+| LTCUSDT | 55 | 67.3% | +$908 | +9083% | 4.2% | 1.89 | 1.23:1 |
+| HBARUSDT | 59 | 64.4% | +$247 | +2465% | 4.9% | 1.96 | 1.46:1 |
+| VIRTUALUSDT | 69 | 72.5% | +$496 | +4959% | 2.4% | 2.70 | 1.24:1 |
+| SEIUSDT | 60 | 63.3% | -$23 | -231% | 4.9% | 1.45 | 1.05:1 |
+| EIGENUSDT | 54 | 70.4% | -$2,298 | -22975% | 5.1% | 2.39 | 1.20:1 |
+| **TOTAL** | **2000** | **65.0%** | **+$119,184** | **+1,191,837%** | — | — | **1.27:1** |
 
-**$10 → $26,690 dalam setahun**
+**$10 → $119,194 dalam 16 bulan**
 
 ### Per Kuartal:
 | Kuartal | Trade | WR% | PnL | Bal Awal → Akhir |
 |---------|------:|----:|----:|:----------------:|
-| Q1 | 271 | 40% | +$39 | $10 → $49 |
-| Q2 | 280 | 54% | +$1,119 | $49 → $1,168 |
-| Q3 | 245 | 42% | +$4,491 | $1,168 → $5,659 |
-| Q4 | 245 | 41% | +$21,031 | $5,659 → $26,690 |
+| Q1 2025 | 334 | 60.5% | +$21 | $10 → $31 |
+| Q2 2025 | 407 | 65.8% | +$154 | $31 → $184 |
+| Q3 2025 | 380 | 64.5% | +$885 | $184 → $1,070 |
+| Q4 2025 | 343 | 66.8% | +$7,669 | $1,070 → $8,738 |
+| Q1 2026 | 397 | 65.7% | +$55,891 | $8,738 → $64,629 |
+| Q2 2026 | 139 | 69.1% | +$54,564 | $64,629 → $119,194 |
 
 ---
 
 ## Coin yang Dikeluarkan
 
-| Coin | Alasan |
-|------|--------|
-| TAOUSDT | Compound -$347 meski PF 1.76 — timing buruk (loss saat balance besar) |
-| FARTCOINUSDT | Compound -$71, MaxDD 13.1%, WR 36.9% — tidak cocok dengan strategi |
-| SUIUSDT | WR 28.3%, PF 0.94 — satu-satunya coin net losing |
-| 1000FLOKIUSDT | WR 26.9%, PF 0.88 — net losing, MaxDD 14% |
-| TONUSDT | WR 30.4%, hanya 23 trade, compound negatif |
-| INJUSDT | WR 30.5%, PF 1.04 — di level noise |
-| ICPUSDT | WR 29.7%, PF 1.02 — di level noise |
+### Batch 2 tidak lolos filter (PF < 1.40 atau compound negatif):
+| Coin | PF | Alasan |
+|------|---:|--------|
+| INJUSDT | 1.33 | PF di bawah threshold |
+| CFXUSDT | 1.38 | PF di bawah threshold |
+| CRVUSDT | 1.36 | PF di bawah threshold |
+| APTUSDT | 1.08 | PF terlalu rendah |
+| UNIUSDT | — | Compound negatif |
+| RNDRUSDT | — | Data tidak tersedia |
+
+### Catatan EIGENUSDT:
+- WR 70.4%, PF 2.39 — strategy profitable
+- Compound -$2,298 karena timing buruk (loss terjadi saat balance besar di Q4 2025/Q1 2026)
+- **Tetap dipertahankan** — PF jauh di atas 1.0, jangka panjang positif
 
 ---
 
@@ -237,7 +279,7 @@ print(f'P25={p25:.3f}%')
 - Sleep per coin: 3 detik → maks ~36 coin (worst case)
 - Bybit API limit: 600 req/5 menit → aman
 - Railway free tier: cukup (512MB RAM, 1 vCPU)
-- **Sekarang: 22 coin** — masih dalam batas nyaman
+- **Sekarang: 35 coin** — mendekati batas nyaman, masih aman
 
 ---
 
@@ -245,8 +287,9 @@ print(f'P25={p25:.3f}%')
 
 1. **Selalu backtest dulu** sebelum tambah coin ke bot live
 2. **ATR P25** tersedia di log backtest_web.py — langsung pakai nilai itu
-3. **Recursive IDM**: IDM#1 wajib BOS dulu, IDM#2+ langsung bisa MSS atau BOS lagi
-4. **inner_idm flag**: membedakan IDM#1 (→WAIT_BOS_BREAK) dari IDM#2+ (→WAIT_MSS)
+3. **fvg_sbr strategy**: Entry market di C1.close (SBR zone), SL di C1.low/high ± 10% gap, trail 0.15R aktif setelah +1R
+4. **Trail stop**: backtest pakai threshold `peak ≥ entry+dist`, live bot pakai `activePrice = entry+dist` di Bybit
 5. **CHOCH**: cek dilakukan SEBELUM print apapun agar tidak ada log spurious
-6. **AVAXUSDT**: PF 2.05 tapi compound negatif karena timing — **jangan dibuang**, strategy-nya profitable
-7. **Compound Q4 dominan**: bukan karena WR lebih tinggi, tapi balance sudah besar → tiap 1% = lebih banyak dollar
+6. **EIGENUSDT**: WR 70.4% PF 2.39 tapi compound negatif karena timing — **jangan dibuang**, strategy-nya profitable
+7. **Compound growth dominan di kuartal akhir**: bukan karena WR lebih tinggi, tapi balance sudah besar → tiap 1% = lebih banyak dollar
+8. **35 coin mendekati batas kapasitas** (maks ~36): jangan tambah coin tanpa backtest dulu
