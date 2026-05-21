@@ -50,28 +50,21 @@ COINS_SAVED = [
     'ORCAUSDT', 'XRPUSDT', 'XAUTUSDT', 'FARTCOINUSDT', 'TAOUSDT',
 ]
 
-# ── Batch baru — belum pernah ditest fvg_sbr, data tersedia Jan 2025+ ─────
+# ── Gabungan: COINS_SAVED + lolos filter batch 2 (PF ≥ 1.40, compound +) ──
 COINS = [
-    'SOLUSDT',    # Solana — top coin, listed 2020
-    'SUIUSDT',    # Sui — listed May 2023
-    'INJUSDT',    # Injective — listed 2022
-    'TIAUSDT',    # Celestia — listed Oct 2023
-    'APTUSDT',    # Aptos — listed Oct 2022
-    'AAVEUSDT',   # AAVE — listed 2020
-    'UNIUSDT',    # Uniswap — listed 2020
-    'RNDRUSDT',   # Render — listed Apr 2023
-    'GALAUSDT',   # Gala — listed 2021
-    'IMXUSDT',    # Immutable X — listed 2021
-    'GMXUSDT',    # GMX — listed 2022
-    'HBARUSDT',   # Hedera — listed 2021
-    'SANDUSDT',   # The Sandbox — listed 2021
-    'AXSUSDT',    # Axie Infinity — listed 2021
-    'CFXUSDT',    # Conflux — listed 2022
-    'CRVUSDT',    # Curve — listed 2020
-    'LTCUSDT',    # Litecoin — listed 2019
-    'DYDXUSDT',   # dYdX — listed 2021
-    'FLOWUSDT',   # Flow — listed 2021
-    'ICPUSDT',    # Internet Computer — listed 2021
+    # Batch 1 (21 coin)
+    'XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT',
+    '1000PEPEUSDT',
+    'ONDOUSDT', 'EIGENUSDT', 'VIRTUALUSDT',
+    'ENAUSDT', 'SHIB1000USDT',
+    'JUPUSDT', 'SEIUSDT', 'OPUSDT',
+    'STXUSDT', 'APEUSDT', 'ALGOUSDT',
+    'ORCAUSDT', 'XRPUSDT', 'XAUTUSDT', 'FARTCOINUSDT', 'TAOUSDT',
+    # Batch 2 lolos (14 coin)
+    'SOLUSDT', 'SUIUSDT', 'TIAUSDT',
+    'AAVEUSDT', 'GALAUSDT', 'IMXUSDT', 'GMXUSDT',
+    'HBARUSDT', 'SANDUSDT', 'AXSUSDT',
+    'LTCUSDT', 'DYDXUSDT', 'FLOWUSDT', 'ICPUSDT',
 ]
 
 # 2025-01-01 00:00:00 UTC  →  2026-04-30 23:59:59 UTC  (dalam ms)
