@@ -89,6 +89,7 @@ SYMBOLS = [
     'ENAUSDT', 'SHIB1000USDT',
     'JUPUSDT', 'DOTUSDT', 'SEIUSDT', 'OPUSDT', 'RUNEUSDT',
     'STXUSDT', 'APEUSDT', 'ALGOUSDT',
+    'ORCAUSDT', 'XRPUSDT', 'XAUTUSDT', 'FARTCOINUSDT', 'TAOUSDT',
 ]
 
 ATR_THRESHOLD = {
@@ -112,6 +113,11 @@ ATR_THRESHOLD = {
     'STXUSDT'       : 0.0025,
     'APEUSDT'       : 0.0024,
     'ALGOUSDT'      : 0.0024,
+    'ORCAUSDT'      : 0.0024,   # P25=0.237%
+    'XRPUSDT'       : 0.0020,   # estimasi — update setelah backtest
+    'XAUTUSDT'      : 0.0008,   # estimasi — update setelah backtest
+    'FARTCOINUSDT'  : 0.0040,   # estimasi — update setelah backtest
+    'TAOUSDT'       : 0.0025,   # estimasi — update setelah backtest
 }
 
 pending          = {}
