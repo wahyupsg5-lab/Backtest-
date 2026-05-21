@@ -716,12 +716,15 @@ Bot trading otomatis berbasis **Smart Money Concepts (SMC)** untuk Bybit Futures
 ## 📐 Strategi
 
 ```
-BOS H1 → EMA50 Filter → FVG Touch → IDM M5 → BOS/Sweep M5 → MSS → Entry
+BOS H1 → FVG Kuat (C3 vol > avg20H, 3 candle warna sama) → OCL Touch M5
+  → Entry limit di C1.close (SBR/RBS demand/supply zone)
+  → SL di C1.low/C1.high + 10% buffer → Trail stop 0.15× dist → Reverse 2×
 ```
 
 **Risk Management:**
 - Risk per trade: **1% dari balance** (compound — tiap trade risk ikut balance live)
-- TP: **3R** (3× jarak SL dari entry)
+- Exit: **trailing stop** 0.15× dist (tidak ada fixed TP — exit mengikuti harga)
+- Reverse: Long→SL→Short→SL→Long (max 2 kali reverse per setup)
 - Leverage: otomatis sesuai limit coin, maks 10×
 
 ---
@@ -742,7 +745,7 @@ BOS H1 → EMA50 Filter → FVG Touch → IDM M5 → BOS/Sweep M5 → MSS → En
 
 ### Analisis Win/Loss per Coin
 
-> Format: Direction · Entry Type · IDM depth · MSS body · Volume ratio
+> Format: Direction · Vol C3 (FVG strength) · Gap size · Sesi dominan
 
 | Coin | ✅ Win (pola rata-rata) | ❌ Loss (pola rata-rata) | 💡 Insight |
 |------|------------------------|-------------------------|------------|
@@ -758,12 +761,13 @@ BOS H1 → EMA50 Filter → FVG Touch → IDM M5 → BOS/Sweep M5 → MSS → En
 |-----------|-------|
 | Modal Awal | ${INITIAL_BALANCE:.0f} |
 | Risk per Trade | 1% balance (compound) |
-| TP | 3R |
+| Entry Mode | {_ENTRY_MODE} (SBR — C1.close) |
+| Exit | Trail stop {_TRAIL_STOP}× dist + Reverse 2× |
 | Leverage | maks 10× |
 | Fee | 0.055%/sisi (Bybit taker) |
-| ATR Filter | P25 per coin |
-| Entry | SBR (C1.close) |
-| Min SL distance | 0.2% |
+| Touch Vol Min | {_TOUCH_VOL_MIN}× avg20M5 |
+| Max Gap | {_MAX_GAP_PCT*100:.2f}% dari harga |
+| Min SL distance | {_MIN_DIST_PCT*100:.1f}% |
 
 ---
 
@@ -775,8 +779,8 @@ SYMBOLS = {COINS}
 
 ## Catatan
 
-Strategi: **Recursive IDM** (IDM#1 → mandatory BOS → IDM#2 dalam BOS → WAIT_MSS → entry atau BOS lagi).
-Filter FVG-CHOCH aktif: FVG harus sepenuhnya di atas CHOCH level (Long) / di bawah CHOCH (Short).
+Strategi: **FVG SBR** (BOS H1 → FVG kuat → OCL touch → entry limit di C1.close dengan trailing stop).
+Filter aktif: C3 vol > avg20H, CHOCH invalidasi setup, TOUCH_VOL_MIN di fill candle, MAX_GAP_PCT.
 
 ---
 
@@ -1035,7 +1039,7 @@ def _render_html() -> bytes:
 
   <h2>Analisis Win/Loss per Coin</h2>
   <p style="font-size:11px;color:#8b949e">
-    Format: Direction · Entry Type · IDM depth rata-rata · MSS body rata-rata · Volume ratio rata-rata
+    Format: Direction · Vol C3 (FVG strength) · Vol sentuh SBR · Gap size · Sesi dominan
   </p>
   <div class="tbl-wrap">{wl_table}</div>
 
