@@ -29,9 +29,9 @@ SL_MULT      = 6.2      # SL distance dari titik 0 (dalam R unit = FVG height)
 TP_MULT      = 2.0      # TP distance dari titik 0 (dalam R unit)
 ENTRY_R      = 8.0      # fvg_rev_limit: level limit entry dari titik 0 (dalam R)
 TIME_FILTER  = 0        # max candles FVG→MSS (0 = disabled)
-TRAIL_STOP   = 1.0      # trailing SL step dalam R (0 = disabled, pakai fixed TP)
+TRAIL_STOP   = 0.15     # trailing SL step dalam R — sinkron dengan bott_v4.py
 TOUCH_VOL_MIN = 0.8     # fvg_strong: touch candle vol min (× avg 20 M5 candle; 0 = no filter)
-MAX_GAP_PCT   = 0.005   # fvg_strong: max gap_size / entry_p (0 = no filter)
+MAX_GAP_PCT   = 0.006   # fvg_strong: max gap_size / entry_p — sinkron dengan bott_v4.py
 
 
 DATA_DIR = "/home/claude/fulldata"
@@ -537,11 +537,11 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance, _skip_reason
                 max_float = adv
             if TRAIL_STOP > 0 and h > peak:
                 peak = h
-                if peak >= entry + dist:          # BE trigger: +3.1R
-                    new_tsl  = max(entry, peak - TRAIL_STOP * dist)
-                    trail_sl = max(trail_sl, new_tsl)
-                    if trail_sl >= entry:
-                        trail_engaged = True
+                # Trail SL mengikuti peak dari candle pertama (sinkron Bybit native trail)
+                new_tsl  = peak - TRAIL_STOP * dist
+                trail_sl = max(trail_sl, new_tsl)
+                if peak >= entry + dist:          # trail_engaged: harga capai +1R (sinkron live bot)
+                    trail_engaged = True
             cur_sl = trail_sl if TRAIL_STOP > 0 else sl
             if l <= cur_sl:
                 exit_p = cur_sl; exit_ts = c['ts']; outcome = 'sl'; break
@@ -553,11 +553,11 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance, _skip_reason
                 max_float = adv
             if TRAIL_STOP > 0 and l < peak:
                 peak = l
-                if peak <= entry - dist:          # BE trigger: -3.1R
-                    new_tsl  = min(entry, peak + TRAIL_STOP * dist)
-                    trail_sl = min(trail_sl, new_tsl)
-                    if trail_sl <= entry:
-                        trail_engaged = True
+                # Trail SL mengikuti peak dari candle pertama (sinkron Bybit native trail)
+                new_tsl  = peak + TRAIL_STOP * dist
+                trail_sl = min(trail_sl, new_tsl)
+                if peak <= entry - dist:          # trail_engaged: harga capai -1R (sinkron live bot)
+                    trail_engaged = True
             cur_sl = trail_sl if TRAIL_STOP > 0 else sl
             if h >= cur_sl:
                 exit_p = cur_sl; exit_ts = c['ts']; outcome = 'sl'; break
@@ -992,8 +992,16 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
             scan_end = min(total - 1, found_fvg_idx + 576)
             for k in range(found_fvg_idx, scan_end):
                 ck = df_m5_full.iloc[k]
-                if stype == "Long"  and float(ck['low'])  <= entry_limit: fill_idx = k; break
-                if stype == "Short" and float(ck['high']) >= entry_limit: fill_idx = k; break
+                if stype == "Long" and float(ck['low']) <= entry_limit:
+                    # FVG broken: close di bawah gap bottom → sinkron live bot
+                    if float(ck['close']) < fvg_bot:
+                        break
+                    fill_idx = k; break
+                if stype == "Short" and float(ck['high']) >= entry_limit:
+                    # FVG broken: close di atas gap top → sinkron live bot
+                    if float(ck['close']) > fvg_top:
+                        break
+                    fill_idx = k; break
             if fill_idx is None:
                 c_dir_fail += 1; i += 12; continue
 
