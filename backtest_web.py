@@ -40,14 +40,14 @@ bt.TRAIL_STOP    = _TRAIL_STOP
 bt.MIN_DIST_PCT  = _MIN_DIST_PCT
 
 COINS = [
-    # Sama persis dengan SYMBOLS di bott_v4.py (23 coin aktif)
+    # Coin yang sudah ada di bot — simpan dulu, hasil dari fvg_sbr belum ditest
     'XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT',
     '1000PEPEUSDT', 'PNUTUSDT', 
     'ONDOUSDT', 'EIGENUSDT', 'VIRTUALUSDT',
-    'ARBUSDT', 'ENAUSDT', 'SHIB1000USDT',
-    '1000FLOKIUSDT',
+    'ENAUSDT', 'SHIB1000USDT',
     'JUPUSDT', 'DOTUSDT', 'SEIUSDT', 'OPUSDT', 'RUNEUSDT',
-    'STXUSDT', 'ATOMUSDT', 'APEUSDT', 'LDOUSDT', 'ALGOUSDT',
+    'STXUSDT', 'APEUSDT', 'LDOUSDT', 'ALGOUSDT',
+    # TODO: tambah coin baru yang belum pernah ditest dengan fvg_sbr
 ]
 
 # 2025-01-01 00:00:00 UTC  →  2026-04-30 23:59:59 UTC  (dalam ms)
