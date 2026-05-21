@@ -90,6 +90,8 @@ _quarter_stats      = {}          # Q1..Q4 compound
 _all_trades         = []          # semua trade (compound replayed)
 _compound_final_bal = INITIAL_BALANCE
 _overall_avg_rr     = 0.0         # avg R:R keseluruhan semua coin
+_overall_pf         = 0.0         # profit factor keseluruhan dari semua trade
+_portfolio_max_dd   = 0.0         # max drawdown portfolio compound
 
 
 def _ts():
@@ -287,15 +289,12 @@ def _compound_replay(all_trades: list) -> tuple:
     Replay semua trade dalam urutan waktu dengan SATU balance bersama.
     Risk per trade = 1% dari balance saat itu (compound nyata).
 
-    Untuk TP   : PnL = +3R  = +3 × risk
-    Untuk SL   : PnL = -1R  = -1 × risk
-    Untuk timeout : R_multiple = (exit - entry) / abs(entry - sl)
-                   positif jika menguntungkan
-
-    Return: (replayed_trades, final_balance)
+    Return: (replayed_trades, final_balance, portfolio_max_dd_pct)
     """
     sorted_trades = sorted(all_trades, key=lambda t: t['entry_ts'])
-    bal = INITIAL_BALANCE
+    bal  = INITIAL_BALANCE
+    peak = INITIAL_BALANCE
+    max_dd = 0.0
     replayed = []
     for t in sorted_trades:
         if bal <= 0:
@@ -314,8 +313,13 @@ def _compound_replay(all_trades: list) -> tuple:
         bal += pnl
         if bal < 0:
             bal = 0.0
+        if bal > peak:
+            peak = bal
+        dd = (peak - bal) / peak * 100 if peak > 0 else 0.0
+        if dd > max_dd:
+            max_dd = dd
         replayed.append({**t, 'compound_pnl': pnl, 'compound_bal': bal})
-    return replayed, bal
+    return replayed, bal, max_dd
 
 
 def _calc_quarters_compound(replayed: list) -> dict:
@@ -451,7 +455,8 @@ def _fmt_grp(s) -> str:
 
 # ── Main runner (background thread) ──────────────────────────────────────
 def _run():
-    global _phase, _results, _quarter_stats, _all_trades, _compound_final_bal
+    global _phase, _results, _quarter_stats, _all_trades, _compound_final_bal, \
+           _overall_avg_rr, _overall_pf, _portfolio_max_dd
 
     _log_msg("=" * 62)
     _trail_str = f" Trail={_TRAIL_STOP}R+Reverse" if _TRAIL_STOP > 0 else f" TP={_TP_MULT}R"
@@ -599,7 +604,7 @@ def _run():
         all_trades_list.extend(trades)
 
         # Progressive compound: update setiap kali 1 coin selesai
-        rep_tmp, cpnd_tmp = _compound_replay(all_trades_list)
+        rep_tmp, cpnd_tmp, _ = _compound_replay(all_trades_list)
         cpnl_tmp = {}
         for _t in rep_tmp:
             cpnl_tmp[_t['symbol']] = cpnl_tmp.get(_t['symbol'], 0.0) + _t['compound_pnl']
@@ -614,7 +619,7 @@ def _run():
     # ── Compound replay: 1 pot bersama, risk 1% per trade ───────────────
     _log_msg(f"\n{'='*62}")
     _log_msg("📐 Compound Replay (1 pot bersama, risk 1%/trade dari balance live)...")
-    replayed, compound_final = _compound_replay(all_trades_list)
+    replayed, compound_final, port_max_dd = _compound_replay(all_trades_list)
 
     # Update per-coin compound PnL
     coin_cpnl = {}
@@ -631,17 +636,28 @@ def _run():
     wr_all    = total_w / total_n * 100 if total_n else 0
     cpnl_tot  = compound_final - INITIAL_BALANCE
 
-    # Overall avg R:R dari semua trade win semua coin
-    _all_rr = []
+    # Overall avg R:R (dari semua win) + overall PF (dari semua trade)
+    all_rr = []; gw_r = 0.0; gl_r = 0.0
     for t in all_trades_list:
-        if t.get('outcome') != 'tp': continue
         ep = t.get('entry', 0); sl_p = t.get('sl', 0); xp = t.get('exit_price', 0)
         sl_dist = abs(ep - sl_p)
-        if ep and sl_dist > 0 and xp:
-            _all_rr.append(abs(xp - ep) / sl_dist)
-    overall_rr = round(sum(_all_rr) / len(_all_rr), 2) if _all_rr else 0.0
+        if not (ep and sl_dist > 0 and xp):
+            continue
+        if t['type'] == 'Long':
+            r = (xp - ep) / sl_dist
+        else:
+            r = (ep - xp) / sl_dist
+        if r > 0:
+            gw_r += r
+            if t.get('outcome') == 'tp':
+                all_rr.append(r)
+        else:
+            gl_r += abs(r)
+    overall_rr = round(sum(all_rr) / len(all_rr), 2) if all_rr else 0.0
+    overall_pf = round(gw_r / gl_r, 2) if gl_r > 0 else 99.0
 
     _log_msg(f"TOTAL: {total_n} trade | WR:{wr_all:.1f}% | Avg R:R:{overall_rr:.2f}:1 | "
+             f"PF:{overall_pf:.2f} | MaxDD:{port_max_dd:.1f}% | "
              f"Compound: ${INITIAL_BALANCE:.2f} → ${compound_final:.2f} "
              f"(+${cpnl_tot:.2f}, +{cpnl_tot/INITIAL_BALANCE*100:.0f}% ROI)")
     for q, s in qs.items():
@@ -656,6 +672,8 @@ def _run():
         _compound_final_bal  = compound_final
         _results             = list(results)
         _overall_avg_rr      = overall_rr
+        _overall_pf          = overall_pf
+        _portfolio_max_dd    = port_max_dd
 
 
 # ── README markdown generator ─────────────────────────────────────────────
@@ -666,6 +684,8 @@ def _gen_readme() -> str:
         phase        = _phase
         final_bal    = _compound_final_bal
         overall_rr   = _overall_avg_rr
+        overall_pf   = _overall_pf
+        port_max_dd  = _portfolio_max_dd
 
     if phase == 'running':
         return "# Backtest masih berjalan, coba lagi nanti…\n"
@@ -676,11 +696,6 @@ def _gen_readme() -> str:
     wr_all   = total_w / total_n * 100 if total_n else 0
     cpnl_tot = final_bal - INITIAL_BALANCE
     roi_all  = cpnl_tot / INITIAL_BALANCE * 100
-
-    # per-coin compound PF dari quarter stats tak tersedia langsung — pakai per-coin pf
-    gw_all = sum(r.get('compound_pnl', 0) for r in ok if r.get('compound_pnl', 0) > 0)
-    gl_all = abs(sum(r.get('compound_pnl', 0) for r in ok if r.get('compound_pnl', 0) < 0))
-    pf_all = gw_all / gl_all if gl_all > 0 else 99.0
 
     # Per-coin table (gunakan compound_pnl)
     coin_rows = ""
@@ -697,12 +712,15 @@ def _gen_readme() -> str:
             f"{r['pf']:.2f} | {rr_s} | {r['p25_atr']:.4f} |\n"
         )
 
-    total_sign = '+' if cpnl_tot >= 0 else ''
+    total_sign     = '+' if cpnl_tot >= 0 else ''
     roi_total_sign = '+' if roi_all >= 0 else ''
-    rr_tot_str = f"**{overall_rr:.2f}:1**" if overall_rr > 0 else "—"
+    rr_tot_str  = f"**{overall_rr:.2f}:1**" if overall_rr > 0 else "—"
+    pf_tot_str  = f"**{overall_pf:.2f}**"   if overall_pf > 0 else "—"
+    dd_tot_str  = f"**{port_max_dd:.1f}%**" if port_max_dd > 0 else "—"
     coin_rows += (
         f"| **TOTAL** | **{total_n}** | **{wr_all:.0f}%** | "
-        f"**{total_sign}${cpnl_tot:.2f}** | **{roi_total_sign}{roi_all:.0f}%** | — | **{pf_all:.2f}** | {rr_tot_str} |\n"
+        f"**{total_sign}${cpnl_tot:.2f}** | **{roi_total_sign}{roi_all:.0f}%** | "
+        f"{dd_tot_str} | {pf_tot_str} | {rr_tot_str} | — |\n"
     )
 
     # Win/loss analysis — per coin + total keseluruhan
@@ -749,22 +767,23 @@ Bot trading otomatis berbasis **Smart Money Concepts (SMC)** untuk Bybit Futures
 ## 📐 Strategi
 
 ```
-BOS H1 → FVG Kuat (C3 vol > avg20H, 3 candle warna sama) → OCL Touch M5
-  → Entry limit di C1.close (SBR/RBS demand/supply zone)
-  → SL di C1.low/C1.high + 10% buffer → Trail stop 0.15× dist → Reverse 2×
+BOS H1 → FVG Kuat (C3 vol > avg20H) → SBR Touch M5
+  → Entry market di C1.close (SBR/RBS demand/supply zone)
+  → SL di C1.low/C1.high ± 10% gap buffer
+  → Trail stop {_TRAIL_STOP}× dist (aktif setelah +1R) → Reverse max 2×
 ```
 
 **Risk Management:**
 - Risk per trade: **1% dari balance** (compound — tiap trade risk ikut balance live)
-- Exit: **trailing stop** 0.15× dist (tidak ada fixed TP — exit mengikuti harga)
-- Reverse: Long→SL→Short→SL→Long (max 2 kali reverse per setup)
+- Exit: **trailing stop** {_TRAIL_STOP}× dist, aktif setelah profit +1R
+- Reverse: Long→SL→Short (max 2 kali per setup)
 - Leverage: otomatis sesuai limit coin, maks 10×
 
 ---
 
 ## 📊 Hasil Backtest — Jan 2025–Apr 2026
 
-> Modal ${INITIAL_BALANCE:.0f} | Risk 1%/trade compound (1 pot bersama) | TP 3R | ATR Filter Adaptif
+> Modal ${INITIAL_BALANCE:.0f} | Risk 1%/trade compound (1 pot bersama) | Trail {_TRAIL_STOP}R + Reverse | ATR Filter Adaptif
 > _{len(COINS)} Coin | Data Bybit Perpetual USDT | M5+H1 | Jan 2025–Apr 2026_
 > _(Generated: {today})_
 
@@ -866,12 +885,13 @@ a{color:#58a6ff}
 
 def _render_html() -> bytes:
     with _lock:
-        phase    = _phase
-        log_cp   = list(_log)
-        res_cp   = list(_results)
-        qs       = dict(_quarter_stats)
-        cmp_bal  = _compound_final_bal
-        overall_rr = _overall_avg_rr
+        phase       = _phase
+        log_cp      = list(_log)
+        res_cp      = list(_results)
+        qs          = dict(_quarter_stats)
+        cmp_bal     = _compound_final_bal
+        overall_rr  = _overall_avg_rr
+        port_max_dd = _portfolio_max_dd
 
     refresh = '<meta http-equiv="refresh" content="8">' if phase == 'running' else ''
     chip    = ('<span class="chip chip-run">⏳ Running…</span>' if phase == 'running'
@@ -939,8 +959,10 @@ def _render_html() -> bytes:
         nl_tot    = total_loss
         sdrift_tot = nl_tot - stp_tot - schoch_tot
         choch_tot_pct = schoch_tot / nl_tot * 100 if nl_tot else 0
-        rr_tot_c = 'g' if overall_rr >= 2.0 else ('y' if overall_rr >= 1.5 else 'r')
-        rr_tot_s = f'{overall_rr:.2f}:1' if overall_rr > 0 else '—'
+        rr_tot_c  = 'g' if overall_rr >= 2.0 else ('y' if overall_rr >= 1.5 else 'r')
+        rr_tot_s  = f'{overall_rr:.2f}:1' if overall_rr > 0 else '—'
+        dd_tot_c  = 'r' if port_max_dd > 20 else ('y' if port_max_dd > 10 else 'g')
+        dd_tot_s  = f'{port_max_dd:.1f}%' if port_max_dd > 0 else '—'
         coin_rows += (
             f'<tr style="border-top:2px solid #30363d;font-weight:bold">'
             f'<td>TOTAL ({len(res_cp)} coin)</td>'
@@ -948,7 +970,7 @@ def _render_html() -> bytes:
             f'<td class="{"g" if wr_tot>=55 else "y"}">{wr_tot:.1f}%</td>'
             f'<td class="{"g" if total_cpnl>=0 else "r"}">{sign}${total_cpnl:.2f}</td>'
             f'<td class="{"g" if total_cpnl>=0 else "r"}">{sign}{roi_tot:.0f}%</td>'
-            f'<td>—</td><td>—</td>'
+            f'<td class="{dd_tot_c}">{dd_tot_s}</td><td>—</td>'
             f'<td class="{rr_tot_c}">{rr_tot_s}</td>'
             f'<td><small>TP:{stp_tot} CH:{schoch_tot} Dr:{sdrift_tot}</small></td>'
             f'<td>{choch_tot_pct:.0f}%</td>'
