@@ -40,12 +40,11 @@ bt.TRAIL_STOP    = _TRAIL_STOP
 bt.MIN_DIST_PCT  = _MIN_DIST_PCT
 
 COINS = [
-    # Coin yang sudah ada di bot — simpan dulu, hasil dari fvg_sbr belum ditest
     'XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT',
-    '1000PEPEUSDT', 'PNUTUSDT', 
+    '1000PEPEUSDT',
     'ONDOUSDT', 'EIGENUSDT', 'VIRTUALUSDT',
     'ENAUSDT', 'SHIB1000USDT',
-    'JUPUSDT', 'DOTUSDT', 'SEIUSDT', 'OPUSDT', 'RUNEUSDT',
+    'JUPUSDT', 'SEIUSDT', 'OPUSDT',
     'STXUSDT', 'APEUSDT', 'ALGOUSDT',
     'ORCAUSDT', 'XRPUSDT', 'XAUTUSDT', 'FARTCOINUSDT', 'TAOUSDT',
 ]
