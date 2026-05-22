@@ -32,6 +32,7 @@ TIME_FILTER  = 0        # max candles FVG→MSS (0 = disabled)
 TRAIL_STOP   = 0.15     # trailing SL step dalam R — sinkron dengan bott_v4.py
 TOUCH_VOL_MIN = 0.8     # fvg_strong: touch candle vol min (× avg 20 M5 candle; 0 = no filter)
 MAX_GAP_PCT   = 0.006   # fvg_strong: max gap_size / entry_p — sinkron dengan bott_v4.py
+APPROACH_R    = 2.0     # fvg_limit: place order saat harga dalam 2R dari entry
 
 
 DATA_DIR = "/home/claude/fulldata"
@@ -1088,20 +1089,39 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
             if d <= 0 or d < entry_limit * MIN_DIST_PCT:
                 c_dir_fail += 1; i += 12; continue
 
-            # Scan fill dari titik BOS (i) — no volume check
-            # CHOCH setiap 12 candle (H1 equiv) → cancel limit
-            fill_idx = None
-            scan_end = min(total - 1, i + 576)
+            # Fase 1: tunggu harga mendekati dalam APPROACH_R dari entry
+            approach_thr = APPROACH_R * d
+            approach_idx = None
+            scan_end     = min(total - 1, i + 576)
             for k in range(i, scan_end):
                 ck = df_m5_full.iloc[k]
                 if k > i and (k - i) % 12 == 0 and choch_level is not None:
                     ck_c = float(ck['close'])
                     if stype == "Long"  and ck_c < choch_level: break
                     if stype == "Short" and ck_c > choch_level: break
-                if stype == "Long"  and float(ck['low'])  <= entry_limit:
-                    fill_idx = k; break
-                if stype == "Short" and float(ck['high']) >= entry_limit:
-                    fill_idx = k; break
+                if stype == "Long"  and float(ck['low'])  <= entry_limit + approach_thr:
+                    approach_idx = k; break
+                if stype == "Short" and float(ck['high']) >= entry_limit - approach_thr:
+                    approach_idx = k; break
+
+            if approach_idx is None:
+                c_dir_fail += 1; i += 12; continue
+
+            # Fase 2: dari approach, tunggu fill. Batalkan jika harga keluar range.
+            fill_idx = None
+            for k in range(approach_idx, scan_end):
+                ck = df_m5_full.iloc[k]
+                if k > approach_idx and (k - approach_idx) % 12 == 0 and choch_level is not None:
+                    ck_c = float(ck['close'])
+                    if stype == "Long"  and ck_c < choch_level: break
+                    if stype == "Short" and ck_c > choch_level: break
+                # Harga mundur keluar approach range → order dibatalkan
+                if stype == "Long"  and float(ck['close']) > entry_limit + approach_thr: break
+                if stype == "Short" and float(ck['close']) < entry_limit - approach_thr: break
+                # Fill
+                if stype == "Long"  and float(ck['low'])  <= entry_limit: fill_idx = k; break
+                if stype == "Short" and float(ck['high']) >= entry_limit: fill_idx = k; break
+
             if fill_idx is None:
                 c_dir_fail += 1; i += 12; continue
 
