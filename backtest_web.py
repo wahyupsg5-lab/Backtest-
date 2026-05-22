@@ -284,26 +284,51 @@ def _quarter_of(ts) -> str:
     return f'Q{q} {ts.year}'
 
 
-def _compound_replay(all_trades: list) -> tuple:
+def _compound_replay(all_trades: list, max_concurrent: int = bt.MAX_CONCURRENT) -> tuple:
     """
     Replay semua trade dalam urutan waktu dengan SATU balance bersama.
     Risk per trade = 1% dari balance saat itu (compound nyata).
 
+    max_concurrent: maks posisi/limit aktif bersamaan lintas semua coin (slot margin).
+    Trade yang masuk saat slot penuh di-skip (compound_pnl=0, slot_skip=True).
+
     Return: (replayed_trades, final_balance, portfolio_max_dd_pct)
     """
     sorted_trades = sorted(all_trades, key=lambda t: t['entry_ts'])
-    bal  = INITIAL_BALANCE
-    peak = INITIAL_BALANCE
+    bal    = INITIAL_BALANCE
+    peak   = INITIAL_BALANCE
     max_dd = 0.0
     replayed = []
+
+    # Slot tracker: list (exit_ts, symbol) trade yang sedang aktif
+    active_exits = []
+
     for t in sorted_trades:
+        entry_ts = t['entry_ts']
+        exit_ts  = t.get('exit_ts')
+
+        # Bebaskan slot yang sudah exit sebelum/saat entry ini
+        active_exits = [(e, s) for (e, s) in active_exits
+                        if e is None or e > entry_ts]
+
+        # Slot penuh → skip trade ini
+        if len(active_exits) >= max_concurrent:
+            replayed.append({**t, 'compound_pnl': 0.0, 'compound_bal': bal,
+                             'slot_skip': True})
+            continue
+
+        # Ambil slot
+        active_exits.append((exit_ts, t['symbol']))
+
         if bal <= 0:
-            replayed.append({**t, 'compound_pnl': 0.0, 'compound_bal': bal})
+            replayed.append({**t, 'compound_pnl': 0.0, 'compound_bal': bal,
+                             'slot_skip': False})
             continue
         risk    = bal * 0.01
         sl_dist = abs(t['entry'] - t['sl'])
         if sl_dist == 0 or t['entry'] == 0:
-            replayed.append({**t, 'compound_pnl': 0.0, 'compound_bal': bal})
+            replayed.append({**t, 'compound_pnl': 0.0, 'compound_bal': bal,
+                             'slot_skip': False})
             continue
         if t['type'] == 'Long':
             r_mult = (t['exit_price'] - t['entry']) / sl_dist
@@ -318,7 +343,8 @@ def _compound_replay(all_trades: list) -> tuple:
         dd = (peak - bal) / peak * 100 if peak > 0 else 0.0
         if dd > max_dd:
             max_dd = dd
-        replayed.append({**t, 'compound_pnl': pnl, 'compound_bal': bal})
+        replayed.append({**t, 'compound_pnl': pnl, 'compound_bal': bal,
+                         'slot_skip': False})
     return replayed, bal, max_dd
 
 
@@ -635,6 +661,9 @@ def _run():
     total_w   = sum(1 for t in all_trades_list if t['outcome'] == 'tp')
     wr_all    = total_w / total_n * 100 if total_n else 0
     cpnl_tot  = compound_final - INITIAL_BALANCE
+    # Hitung berapa trade yang di-skip karena slot penuh
+    n_skipped = sum(1 for t in replayed if t.get('slot_skip'))
+    n_traded  = total_n - n_skipped
 
     # Overall avg R:R (dari semua win) + overall PF (dari semua trade)
     all_rr = []; gw_r = 0.0; gl_r = 0.0
@@ -656,7 +685,9 @@ def _run():
     overall_rr = round(sum(all_rr) / len(all_rr), 2) if all_rr else 0.0
     overall_pf = round(gw_r / gl_r, 2) if gl_r > 0 else 99.0
 
-    _log_msg(f"TOTAL: {total_n} trade | WR:{wr_all:.1f}% | Avg R:R:{overall_rr:.2f}:1 | "
+    _log_msg(f"TOTAL: {total_n} trade potensial | Slot skip (max {bt.MAX_CONCURRENT}): {n_skipped} "
+             f"| Efektif: {n_traded} trade")
+    _log_msg(f"WR:{wr_all:.1f}% | Avg R:R:{overall_rr:.2f}:1 | "
              f"PF:{overall_pf:.2f} | MaxDD:{port_max_dd:.1f}% | "
              f"Compound: ${INITIAL_BALANCE:.2f} → ${compound_final:.2f} "
              f"(+${cpnl_tot:.2f}, +{cpnl_tot/INITIAL_BALANCE*100:.0f}% ROI)")

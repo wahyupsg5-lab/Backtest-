@@ -33,6 +33,7 @@ TRAIL_STOP   = 0.15     # trailing SL step dalam R — sinkron dengan bott_v4.py
 TOUCH_VOL_MIN = 0.8     # fvg_strong: touch candle vol min (× avg 20 M5 candle; 0 = no filter)
 MAX_GAP_PCT   = 0.006   # fvg_strong: max gap_size / entry_p — sinkron dengan bott_v4.py
 APPROACH_R    = 2.0     # fvg_limit: place order saat harga dalam 2R dari entry
+MAX_CONCURRENT = 3      # maks posisi/limit aktif bersamaan lintas semua coin
 
 
 DATA_DIR = "/home/claude/fulldata"
