@@ -357,9 +357,11 @@ def place_market_order(symbol, side, entry, sl, trail_dist):
     SL awal = entry - dist (Long) / entry + dist (Short).
     """
     try:
-        info     = get_instrument_info(symbol)
-        res_bal  = session.get_wallet_balance(accountType="UNIFIED", coin="USDT")
-        balance  = float(res_bal['result']['list'][0]['totalEquity'])
+        info    = get_instrument_info(symbol)
+        res_bal = session.get_wallet_balance(accountType="UNIFIED", coin="USDT")
+        acct    = res_bal['result']['list'][0]
+        balance = float(acct['totalEquity'])
+        avail   = float(acct.get('totalAvailableBalance', balance))
         risk_usd = balance * 0.01
         dist     = abs(entry - sl)
         if dist == 0:
@@ -392,15 +394,16 @@ def place_market_order(symbol, side, entry, sl, trail_dist):
                 print(f"   ⚠️ {symbol}: set_leverage gagal: {res_lev.get('retMsg','')} "
                       f"(code:{res_lev.get('retCode')}) — coba lanjut")
         except Exception as e:
-            print(f"   ⚠️ {symbol}: set_leverage error: {e} — coba lanjut")
+            if '110043' not in str(e):
+                print(f"   ⚠️ {symbol}: set_leverage error: {e} — coba lanjut")
 
         required_margin = (qty * entry) / lev_int
-        if required_margin > balance * 0.9:
+        if required_margin > avail * 0.9:
             print(f"⚠️ {symbol}: Margin tidak cukup — butuh ~${required_margin:.2f} "
-                  f"(lev {lev_int}x), balance ${balance:.2f}. Skip.")
+                  f"(lev {lev_int}x), avail ${avail:.2f} / equity ${balance:.2f}. Skip.")
             return None
 
-        print(f"   Balance:{balance:.2f} Risk:{risk_usd:.2f} Dist:{dist:.6f} "
+        print(f"   Balance:{balance:.2f} Avail:{avail:.2f} Risk:{risk_usd:.2f} Dist:{dist:.6f} "
               f"Trail:{trail_dist:.6f} Qty:{qty} SL:{sl_r} Lev:{lev_int}x "
               f"Margin:~${required_margin:.2f}")
 
@@ -426,9 +429,11 @@ def place_limit_order(symbol, side, entry_p, sl_p):
     Trail dipasang setelah fill terdeteksi via WAIT_FILL loop.
     """
     try:
-        info     = get_instrument_info(symbol)
-        res_bal  = session.get_wallet_balance(accountType="UNIFIED", coin="USDT")
-        balance  = float(res_bal['result']['list'][0]['totalEquity'])
+        info    = get_instrument_info(symbol)
+        res_bal = session.get_wallet_balance(accountType="UNIFIED", coin="USDT")
+        acct    = res_bal['result']['list'][0]
+        balance = float(acct['totalEquity'])
+        avail   = float(acct.get('totalAvailableBalance', balance))
         risk_usd = balance * 0.01
         dist     = abs(entry_p - sl_p)
         if dist == 0:
@@ -459,16 +464,17 @@ def place_limit_order(symbol, side, entry_p, sl_p):
                 print(f"   ⚠️ {symbol}: set_leverage gagal: {res_lev.get('retMsg','')} "
                       f"(code:{res_lev.get('retCode')}) — coba lanjut")
         except Exception as e:
-            print(f"   ⚠️ {symbol}: set_leverage error: {e} — coba lanjut")
+            if '110043' not in str(e):
+                print(f"   ⚠️ {symbol}: set_leverage error: {e} — coba lanjut")
 
-        # Pre-check margin: qty × entry / leverage harus < 90% balance
+        # Pre-check margin pakai available balance (bukan totalEquity) — sudah dikurangi open orders
         required_margin = (qty * entry_p) / lev_int
-        if required_margin > balance * 0.9:
+        if required_margin > avail * 0.9:
             print(f"⚠️ {symbol}: Margin tidak cukup — butuh ~${required_margin:.2f} "
-                  f"(lev {lev_int}x), balance ${balance:.2f}. Skip.")
+                  f"(lev {lev_int}x), avail ${avail:.2f} / equity ${balance:.2f}. Skip.")
             return None
 
-        print(f"   Balance:{balance:.2f} Risk:{risk_usd:.2f} Dist:{dist:.6f} "
+        print(f"   Balance:{balance:.2f} Avail:{avail:.2f} Risk:{risk_usd:.2f} Dist:{dist:.6f} "
               f"Qty:{qty} LimitEntry:{entry_r} SL:{sl_r} Lev:{lev_int}x "
               f"Margin:~${required_margin:.2f}")
 
