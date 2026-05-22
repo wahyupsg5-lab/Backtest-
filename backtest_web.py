@@ -22,7 +22,7 @@ PORT             = int(os.environ.get('PORT', 8080))
 INITIAL_BALANCE  = 10.0   # modal awal $10
 
 # Entry mode — env var override atau default hardcode di sini
-_ENTRY_MODE    = os.environ.get('ENTRY_MODE',    'fvg_sbr')
+_ENTRY_MODE    = os.environ.get('ENTRY_MODE',    'fvg_limit')
 _SL_MULT       = float(os.environ.get('SL_MULT',       '6.2'))
 _TP_MULT       = float(os.environ.get('TP_MULT',       '18.6'))
 _ENTRY_R       = float(os.environ.get('ENTRY_R',       '9.5'))

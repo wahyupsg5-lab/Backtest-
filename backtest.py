@@ -24,7 +24,7 @@ MIN_RR          = 1.5   # 1:2 = 2.0, 1:3 = 3.0 — cukup untuk contrarian
 MIN_DIST_PCT    = 0.002     # minimum SL distance 0.2% (fvg_sbr pakai C1 range, lebih kecil dari 0.5%)
 
 # ── Test variant config (override dari luar untuk testing) ──
-ENTRY_MODE   = 'bb_sl'  # 'bb_sl'|'bb_entry'|'fvg_touch'|'fvg_touch_rev'|'fvg_rev_limit'|'idm_touch'|'fvg_confirm'|'fvg_deep'|'fvg_dip'|'fvg_strong'|'fvg_sbr'|'fvg_50pct'
+ENTRY_MODE   = 'bb_sl'  # 'bb_sl'|'bb_entry'|'fvg_touch'|'fvg_touch_rev'|'fvg_rev_limit'|'idm_touch'|'fvg_confirm'|'fvg_deep'|'fvg_dip'|'fvg_strong'|'fvg_sbr'|'fvg_50pct'|'fvg_limit'
 SL_MULT      = 6.2      # SL distance dari titik 0 (dalam R unit = FVG height)
 TP_MULT      = 2.0      # TP distance dari titik 0 (dalam R unit)
 ENTRY_R      = 8.0      # fvg_rev_limit: level limit entry dari titik 0 (dalam R)
@@ -698,7 +698,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                     gaps_new = [g for g in gaps_new
                                 if g.get('c3_vol', 0) > g.get('vol_avg20h', 0) > 0
                                 and g.get('c3_open', 0) > 0]
-                elif ENTRY_MODE == 'fvg_sbr':
+                elif ENTRY_MODE in ('fvg_sbr', 'fvg_limit'):
                     gaps_new = [g for g in gaps_new
                                 if g.get('c3_vol', 0) > g.get('vol_avg20h', 0) > 0
                                 and g.get('c1_close', 0) > 0]
@@ -746,23 +746,31 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
         found_fvg_idx = -1
         used_fvg      = None
 
-        for fvg in active_gaps:
-            fvg_top = float(fvg['top']); fvg_bot = float(fvg['bottom'])
-            # fvg_strong: trigger di OCL (C2 close), bukan zona FVG
-            if ENTRY_MODE == 'fvg_strong':
-                ocl = float(fvg.get('c3_open', fvg_bot if active_stype == 'Short' else fvg_top))
-                trig_long  = ocl
-                trig_short = ocl
-            else:
-                trig_long  = fvg_top
-                trig_short = fvg_bot
-            for k in range(i, blk_end_m5):
-                ck = df_m5_full.iloc[k]
-                if active_stype == "Long"  and float(ck['low'])  <= trig_long:
-                    found_fvg_idx = k; used_fvg = fvg; break
-                if active_stype == "Short" and float(ck['high']) >= trig_short:
-                    found_fvg_idx = k; used_fvg = fvg; break
-            if found_fvg_idx >= 0: break
+        if ENTRY_MODE == 'fvg_limit':
+            # Limit order: langsung pick FVG pertama saat BOS — tidak tunggu zone touch
+            for fvg in active_gaps:
+                if float(fvg.get('c1_close', 0)) > 0:
+                    found_fvg_idx = i
+                    used_fvg = fvg
+                    break
+        else:
+            for fvg in active_gaps:
+                fvg_top = float(fvg['top']); fvg_bot = float(fvg['bottom'])
+                # fvg_strong: trigger di OCL (C2 close), bukan zona FVG
+                if ENTRY_MODE == 'fvg_strong':
+                    ocl = float(fvg.get('c3_open', fvg_bot if active_stype == 'Short' else fvg_top))
+                    trig_long  = ocl
+                    trig_short = ocl
+                else:
+                    trig_long  = fvg_top
+                    trig_short = fvg_bot
+                for k in range(i, blk_end_m5):
+                    ck = df_m5_full.iloc[k]
+                    if active_stype == "Long"  and float(ck['low'])  <= trig_long:
+                        found_fvg_idx = k; used_fvg = fvg; break
+                    if active_stype == "Short" and float(ck['high']) >= trig_short:
+                        found_fvg_idx = k; used_fvg = fvg; break
+                if found_fvg_idx >= 0: break
 
         if found_fvg_idx < 0:
             i += 12; continue
@@ -1036,6 +1044,63 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
             _dist        = d; _fvg_d = gap_size
             _vol_ratio   = round(float(used_fvg.get('c3_vol',0)) /
                                  max(float(used_fvg.get('vol_avg20h',1)), 1e-9), 4)
+            _atr_ratio   = round(gap_size / entry_limit, 6) if entry_limit > 0 else 0.0
+
+        # ════════════════════════════════════════════════════════
+        # OPSI B5b: fvg_limit — limit order langsung saat BOS H1 terdeteksi
+        # Entry = C1.close (SBR/RBS zone), SL = C1.low/high + 10% buffer.
+        # Perbedaan vs fvg_sbr: tidak ada volume filter, tidak perlu FVG zone
+        # touch dulu — order langsung aktif dari titik BOS.
+        # CHOCH selama fill wait → cancel (limit dibatalkan).
+        # ════════════════════════════════════════════════════════
+        elif ENTRY_MODE == 'fvg_limit':
+            fvg_top  = float(used_fvg['top'])
+            fvg_bot  = float(used_fvg['bottom'])
+            gap_size = fvg_top - fvg_bot
+            c1_close = float(used_fvg.get('c1_close', fvg_bot))
+            c1_low   = float(used_fvg.get('c1_low',   fvg_bot - gap_size * 0.5))
+            c1_high  = float(used_fvg.get('c1_high',  fvg_top + gap_size * 0.5))
+            if gap_size <= 0 or c1_close <= 0:
+                c_dir_fail += 1; i += 12; continue
+
+            if stype == "Long":
+                entry_limit = c1_close
+                sl_nat      = c1_low - gap_size * 0.1
+                if entry_limit <= sl_nat: c_dir_fail += 1; i += 12; continue
+                d = entry_limit - sl_nat
+            else:
+                entry_limit = c1_close
+                sl_nat      = c1_high + gap_size * 0.1
+                if sl_nat <= entry_limit: c_dir_fail += 1; i += 12; continue
+                d = sl_nat - entry_limit
+
+            if d <= 0 or d < entry_limit * MIN_DIST_PCT:
+                c_dir_fail += 1; i += 12; continue
+
+            # Scan fill dari titik BOS (i) — no volume check
+            # CHOCH setiap 12 candle (H1 equiv) → cancel limit
+            fill_idx = None
+            scan_end = min(total - 1, i + 576)
+            for k in range(i, scan_end):
+                ck = df_m5_full.iloc[k]
+                if k > i and (k - i) % 12 == 0 and choch_level is not None:
+                    ck_c = float(ck['close'])
+                    if stype == "Long"  and ck_c < choch_level: break
+                    if stype == "Short" and ck_c > choch_level: break
+                if stype == "Long"  and float(ck['low'])  <= entry_limit:
+                    fill_idx = k; break
+                if stype == "Short" and float(ck['high']) >= entry_limit:
+                    fill_idx = k; break
+            if fill_idx is None:
+                c_dir_fail += 1; i += 12; continue
+
+            tp_nat = (entry_limit + 1000 * d) if stype == "Long" else (entry_limit - 1000 * d)
+            _entry_idx   = fill_idx; _entry_price = entry_limit
+            _sl_price    = sl_nat
+            _final_tp    = tp_nat
+            _dist        = d; _fvg_d = gap_size
+            _vol_ratio   = round(float(used_fvg.get('c3_vol', 0)) /
+                                 max(float(used_fvg.get('vol_avg20h', 1)), 1e-9), 4)
             _atr_ratio   = round(gap_size / entry_limit, 6) if entry_limit > 0 else 0.0
 
         # ════════════════════════════════════════════════════════
@@ -1398,7 +1463,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
         # Long → SL → Short (rev1) → SL → Long (rev2)
         # Kondisi: immediate SL (no float) ATAU trailing SL di BE+
         # ════════════════════════════════════════════════════════
-        if TRAIL_STOP > 0 and ENTRY_MODE in ('fvg_strong', 'fvg_sbr', 'fvg_50pct'):
+        if TRAIL_STOP > 0 and ENTRY_MODE in ('fvg_strong', 'fvg_sbr', 'fvg_50pct', 'fvg_limit'):
             _r_outcome  = outcome
             _r_extra    = _extra
             _r_exit_p   = exit_p
