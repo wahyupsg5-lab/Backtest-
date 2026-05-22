@@ -1077,15 +1077,13 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                 sl_nat      = c1_mid
                 if entry_limit <= sl_nat: c_dir_fail += 1; i += 12; continue
                 d       = entry_limit - sl_nat
-                d_trail = entry_limit - (c1_low - gap_size * 0.1)   # full range + buffer
+                d_trail = d   # trail ref = c1_mid (sama dengan dist SL)
             else:
                 entry_limit = c1_close
                 sl_nat      = c1_mid
                 if sl_nat <= entry_limit: c_dir_fail += 1; i += 12; continue
                 d       = sl_nat - entry_limit
-                d_trail = (c1_high + gap_size * 0.1) - entry_limit  # full range + buffer
-
-            d_trail = max(d_trail, d)   # tidak boleh lebih kecil dari risk dist
+                d_trail = d   # trail ref = c1_mid (sama dengan dist SL)
 
             if d <= 0 or d < entry_limit * MIN_DIST_PCT:
                 c_dir_fail += 1; i += 12; continue
@@ -1694,11 +1692,8 @@ def _bt_conc_detect_bos(state: dict, active_slots: set) -> None:
     if dist < c1_c * MIN_DIST_PCT:
         return
 
-    # d_trail: full C1 range + buffer (sama dengan backtest_coin fvg_limit)
-    if stype == 'Long':
-        d_trail = max(dist, c1_c - (c1_l - gap_s * 0.1))
-    else:
-        d_trail = max(dist, (c1_h + gap_s * 0.1) - c1_c)
+    # d_trail: c1_mid based (sama dengan dist SL)
+    d_trail = dist
 
     # Jika ada pending berbeda → override (lepas slot lama jika WAIT_FILL)
     if existing and existing.get('phase') == 'WAIT_FILL':
