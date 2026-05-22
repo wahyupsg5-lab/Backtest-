@@ -382,16 +382,27 @@ def place_market_order(symbol, side, entry, sl, trail_dist):
         if trail_dist_r <= 0:
             trail_dist_r = round_price(dist * TRAIL_STOP, info['tick_size'])
 
+        lev_int = 10
         try:
             max_lev = float(info.get('max_leverage', 10))
-            lev     = str(int(min(10, max_lev)))
-            session.set_leverage(category=CATEGORY, symbol=symbol,
-                                 buyLeverage=lev, sellLeverage=lev)
-        except Exception:
-            pass
+            lev_int = int(min(10, max_lev))
+            res_lev = session.set_leverage(category=CATEGORY, symbol=symbol,
+                                           buyLeverage=str(lev_int), sellLeverage=str(lev_int))
+            if res_lev.get('retCode', -1) not in (0, 110043):
+                print(f"   ⚠️ {symbol}: set_leverage gagal: {res_lev.get('retMsg','')} "
+                      f"(code:{res_lev.get('retCode')}) — coba lanjut")
+        except Exception as e:
+            print(f"   ⚠️ {symbol}: set_leverage error: {e} — coba lanjut")
+
+        required_margin = (qty * entry) / lev_int
+        if required_margin > balance * 0.9:
+            print(f"⚠️ {symbol}: Margin tidak cukup — butuh ~${required_margin:.2f} "
+                  f"(lev {lev_int}x), balance ${balance:.2f}. Skip.")
+            return None
 
         print(f"   Balance:{balance:.2f} Risk:{risk_usd:.2f} Dist:{dist:.6f} "
-              f"Trail:{trail_dist:.6f} Qty:{qty} SL:{sl_r}")
+              f"Trail:{trail_dist:.6f} Qty:{qty} SL:{sl_r} Lev:{lev_int}x "
+              f"Margin:~${required_margin:.2f}")
 
         res = session.place_order(
             category=CATEGORY, symbol=symbol, side=side,
@@ -438,16 +449,28 @@ def place_limit_order(symbol, side, entry_p, sl_p):
         entry_r = round_price(entry_p, info['tick_size'])
         sl_r    = round_price(sl_p,    info['tick_size'])
 
+        lev_int = 10
         try:
             max_lev = float(info.get('max_leverage', 10))
-            lev     = str(int(min(10, max_lev)))
-            session.set_leverage(category=CATEGORY, symbol=symbol,
-                                 buyLeverage=lev, sellLeverage=lev)
-        except Exception:
-            pass
+            lev_int = int(min(10, max_lev))
+            res_lev = session.set_leverage(category=CATEGORY, symbol=symbol,
+                                           buyLeverage=str(lev_int), sellLeverage=str(lev_int))
+            if res_lev.get('retCode', -1) not in (0, 110043):   # 110043 = sudah di leverage ini
+                print(f"   ⚠️ {symbol}: set_leverage gagal: {res_lev.get('retMsg','')} "
+                      f"(code:{res_lev.get('retCode')}) — coba lanjut")
+        except Exception as e:
+            print(f"   ⚠️ {symbol}: set_leverage error: {e} — coba lanjut")
+
+        # Pre-check margin: qty × entry / leverage harus < 90% balance
+        required_margin = (qty * entry_p) / lev_int
+        if required_margin > balance * 0.9:
+            print(f"⚠️ {symbol}: Margin tidak cukup — butuh ~${required_margin:.2f} "
+                  f"(lev {lev_int}x), balance ${balance:.2f}. Skip.")
+            return None
 
         print(f"   Balance:{balance:.2f} Risk:{risk_usd:.2f} Dist:{dist:.6f} "
-              f"Qty:{qty} LimitEntry:{entry_r} SL:{sl_r}")
+              f"Qty:{qty} LimitEntry:{entry_r} SL:{sl_r} Lev:{lev_int}x "
+              f"Margin:~${required_margin:.2f}")
 
         res = session.place_order(
             category=CATEGORY, symbol=symbol, side=side,
