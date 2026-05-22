@@ -480,7 +480,8 @@ def find_breaker_block(df_m5, mss_ts_ms, stype):
 # SIMULASI EKSEKUSI TRADE
 # ============================================================
 
-def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance, _skip_reasons=None, _extra_out=None):
+def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance,
+                   _skip_reasons=None, _extra_out=None, trail_ref_dist=None):
     """
     Simulasi trade dari entry_idx+1 sampai TP/SL kena.
     Return: (pnl_usd, outcome, exit_price, exit_ts)
@@ -519,6 +520,9 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance, _skip_reason
     # Fee = taker fee dua arah (entry + exit), berbasis notional
     total_fee = 2 * notional * TAKER_FEE
 
+    # Trail dist — decoupled dari SL dist: bisa pakai full-range dist kalau SL lebih ketat
+    _td = trail_ref_dist if (trail_ref_dist is not None and trail_ref_dist > dist) else dist
+
     # Walk forward candle-by-candle
     future           = df_m5.iloc[entry_idx+1:]
     trail_sl         = sl
@@ -540,8 +544,8 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance, _skip_reason
                 max_float = adv
             if TRAIL_STOP > 0 and h > peak:
                 peak = h
-                if peak >= entry + dist:          # trail aktif setelah +1R profit
-                    new_tsl  = max(entry, peak - TRAIL_STOP * dist)
+                if peak >= entry + _td:           # trail aktif setelah +1 trail-R profit
+                    new_tsl  = max(entry, peak - TRAIL_STOP * _td)
                     trail_sl = max(trail_sl, new_tsl)
                     trail_engaged = True
             cur_sl = trail_sl if TRAIL_STOP > 0 else sl
@@ -555,8 +559,8 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance, _skip_reason
                 max_float = adv
             if TRAIL_STOP > 0 and l < peak:
                 peak = l
-                if peak <= entry - dist:          # trail aktif setelah -1R profit
-                    new_tsl  = min(entry, peak + TRAIL_STOP * dist)
+                if peak <= entry - _td:           # trail aktif setelah -1 trail-R profit
+                    new_tsl  = min(entry, peak + TRAIL_STOP * _td)
                     trail_sl = min(trail_sl, new_tsl)
                     trail_engaged = True
             cur_sl = trail_sl if TRAIL_STOP > 0 else sl
@@ -791,10 +795,11 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
         # ── Shared entry variables ──
         _entry_idx   = None
         _entry_price = None
-        _sl_price    = None
-        _final_tp    = None
-        _dist        = None
-        _fvg_d       = None   # FVG height = 1R dari titik 0 (untuk MAE)
+        _sl_price        = None
+        _final_tp        = None
+        _dist            = None
+        _trail_ref_dist  = None   # trail dist override — lebih besar dari _dist untuk fvg_limit
+        _fvg_d           = None   # FVG height = 1R dari titik 0 (untuk MAE)
         _trigger_str = ENTRY_MODE
         _depth_val   = 0
         _trade_stype = stype   # arah trade aktual — bisa di-flip oleh fvg_touch_rev
@@ -1058,12 +1063,16 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                 entry_limit = c1_close
                 sl_nat      = c1_mid
                 if entry_limit <= sl_nat: c_dir_fail += 1; i += 12; continue
-                d = entry_limit - sl_nat
+                d       = entry_limit - sl_nat
+                d_trail = entry_limit - (c1_low - gap_size * 0.1)   # full range + buffer
             else:
                 entry_limit = c1_close
                 sl_nat      = c1_mid
                 if sl_nat <= entry_limit: c_dir_fail += 1; i += 12; continue
-                d = sl_nat - entry_limit
+                d       = sl_nat - entry_limit
+                d_trail = (c1_high + gap_size * 0.1) - entry_limit  # full range + buffer
+
+            d_trail = max(d_trail, d)   # tidak boleh lebih kecil dari risk dist
 
             if d <= 0 or d < entry_limit * MIN_DIST_PCT:
                 c_dir_fail += 1; i += 12; continue
@@ -1086,13 +1095,14 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                 c_dir_fail += 1; i += 12; continue
 
             tp_nat = (entry_limit + 1000 * d) if stype == "Long" else (entry_limit - 1000 * d)
-            _entry_idx   = fill_idx; _entry_price = entry_limit
-            _sl_price    = sl_nat
-            _final_tp    = tp_nat
-            _dist        = d; _fvg_d = gap_size
-            _vol_ratio   = round(float(used_fvg.get('c3_vol', 0)) /
-                                 max(float(used_fvg.get('vol_avg20h', 1)), 1e-9), 4)
-            _atr_ratio   = round(gap_size / entry_limit, 6) if entry_limit > 0 else 0.0
+            _entry_idx        = fill_idx; _entry_price = entry_limit
+            _sl_price         = sl_nat
+            _final_tp         = tp_nat
+            _dist             = d; _fvg_d = gap_size
+            _trail_ref_dist   = d_trail
+            _vol_ratio        = round(float(used_fvg.get('c3_vol', 0)) /
+                                      max(float(used_fvg.get('vol_avg20h', 1)), 1e-9), 4)
+            _atr_ratio        = round(gap_size / entry_limit, 6) if entry_limit > 0 else 0.0
 
         # ════════════════════════════════════════════════════════
         # OPSI B6: fvg_50pct — entry limit di 50% tengah FVG gap
@@ -1369,7 +1379,8 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
         _extra = {}
         pnl, outcome, exit_p, exit_ts = simulate_trade(
             df_m5_full, _entry_idx, _entry_price, _sl_price, _final_tp, _trade_stype, balance,
-            _skip_reasons=c_simskip_reasons, _extra_out=_extra
+            _skip_reasons=c_simskip_reasons, _extra_out=_extra,
+            trail_ref_dist=_trail_ref_dist
         )
         if outcome == 'skip':
             c_sim_skip += 1; i = _entry_idx + 1; continue
