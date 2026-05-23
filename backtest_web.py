@@ -41,19 +41,22 @@ bt.MIN_DIST_PCT  = _MIN_DIST_PCT
 
 # ── Coin yang sudah lolos backtest fvg_sbr (disimpan, nanti digabung) ─────
 COINS_SAVED = [
-    # 15 coin positif di fvg_limit concurrent backtest (Jan2025–Apr2026)
     'BELUSDT', '1000BONKUSDT', '1000PEPEUSDT',
     'ONDOUSDT', 'VIRTUALUSDT', 'ENAUSDT', 'SEIUSDT',
     'ALGOUSDT', 'ORCAUSDT', 'XRPUSDT', 'XAUTUSDT',
     'FARTCOINUSDT', 'TAOUSDT', 'TIAUSDT', 'SANDUSDT',
 ]
 
-# ── Coin lolos filter fvg_limit (PnL compound positif) ──
 COINS = [
-    'BELUSDT', '1000BONKUSDT', '1000PEPEUSDT',
-    'ONDOUSDT', 'VIRTUALUSDT', 'ENAUSDT', 'SEIUSDT',
-    'ALGOUSDT', 'ORCAUSDT', 'XRPUSDT', 'XAUTUSDT',
-    'FARTCOINUSDT', 'TAOUSDT', 'TIAUSDT', 'SANDUSDT',
+    # 10 dari batch sebelumnya (minus TAO, SEI, PEPE, ENA, XRP)
+    'BELUSDT', '1000BONKUSDT', 'ONDOUSDT', 'VIRTUALUSDT',
+    'ALGOUSDT', 'ORCAUSDT', 'XAUTUSDT', 'FARTCOINUSDT', 'TIAUSDT', 'SANDUSDT',
+    # 20 coin yang dikembalikan
+    'XVGUSDT', 'BERAUSDT', 'EIGENUSDT', 'SHIB1000USDT',
+    'JUPUSDT', 'OPUSDT', 'STXUSDT', 'APEUSDT',
+    'SOLUSDT', 'SUIUSDT', 'AAVEUSDT', 'GALAUSDT',
+    'IMXUSDT', 'GMXUSDT', 'HBARUSDT', 'AXSUSDT',
+    'LTCUSDT', 'DYDXUSDT', 'FLOWUSDT', 'ICPUSDT',
 ]
 
 # 2025-01-01 00:00:00 UTC  →  2026-04-30 23:59:59 UTC  (dalam ms)
