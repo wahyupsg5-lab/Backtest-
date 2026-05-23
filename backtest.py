@@ -1909,7 +1909,7 @@ def backtest_concurrent(coins_data: dict,
                     # Slot tetap di active_slots (tidak discard)
                 else:
                     active_slots.discard(sym)
-                    state['done_bos'] = trade.get('done_key')
+                    state['done_bos'] = None   # reset → bisa re-entry di BOS yang sama
                     state['trade']    = None
 
         # ── 2. Pending setup handling ─────────────────────────────────────
