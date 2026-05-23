@@ -509,7 +509,24 @@ def _order_exists(symbol, order_id):
     try:
         res = session.get_open_orders(category=CATEGORY, symbol=symbol, orderId=order_id)
         if res['retCode'] == 0:
-            return len(res['result']['list']) > 0
+            for o in res['result']['list']:
+                if o.get('orderId') == order_id and \
+                        o.get('orderStatus') in ('New', 'PartiallyFilled', 'Untriggered'):
+                    return True
+            return False
+    except Exception:
+        pass
+    return False
+
+
+def _order_was_filled(symbol, order_id):
+    """True jika order sudah Filled (cek history Bybit)."""
+    try:
+        res = session.get_order_history(
+            category=CATEGORY, symbol=symbol, orderId=order_id, limit=1
+        )
+        if res['retCode'] == 0 and res['result']['list']:
+            return res['result']['list'][0].get('orderStatus') == 'Filled'
     except Exception:
         pass
     return False
@@ -1006,15 +1023,67 @@ def run_bot():
                             # Posisi belum terbuka — cek apakah order masih ada di Bybit
                             oid = setup.get('order_id')
                             if oid and not _order_exists(coin, oid):
-                                # Order sudah hilang (filled+closed dlm 1 candle, atau dibatalkan)
-                                print(f"⚠️ {coin}: Limit order hilang (filled+closed 1 candle "
-                                      f"atau dibatalkan). Setup selesai.")
-                                done_setups[coin] = {
-                                    'swing_val': setup.get('swing_val'),
-                                    'stype'    : stype,
-                                    'used_ocl' : setup.get('entry'),
-                                }
-                                del pending[coin]
+                                # Order hilang dari open orders — cek apakah sudah filled atau cancel
+                                was_filled = _order_was_filled(coin, oid)
+                                if was_filled:
+                                    # Filled + SL kena dlm 1 candle → coba reverse
+                                    exit_p = _get_actual_exit_price(coin)
+                                    exit_str = f"{exit_p:.6f}" if exit_p else "?"
+                                    print(f"⚠️ {coin}: Limit filled+SL 1 candle @ {exit_str} "
+                                          f"→ coba reverse.")
+                                    done_setups[coin] = {
+                                        'swing_val': setup.get('swing_val'),
+                                        'stype'    : stype,
+                                        'used_ocl' : setup.get('entry'),
+                                    }
+                                    del pending[coin]
+                                    if exit_p:
+                                        dist_s   = setup.get('dist', 0)
+                                        rev_side = 'Sell' if stype == 'Long' else 'Buy'
+                                        rev_stype = 'Short' if stype == 'Long' else 'Long'
+                                        rev_sl   = (exit_p + dist_s) if rev_side == 'Sell' \
+                                                   else (exit_p - dist_s)
+                                        rev_trail = TRAIL_STOP * dist_s
+                                        print(f"🔄 {coin}: Reverse {rev_stype} @ {exit_p:.6f} "
+                                              f"(rev#1)")
+                                        rev_oid = place_market_order(
+                                            coin, rev_side, exit_p, rev_sl, rev_trail)
+                                        if rev_oid:
+                                            time.sleep(1)
+                                            pos_rev = get_open_position(coin)
+                                            if pos_rev:
+                                                rev_entry = float(
+                                                    pos_rev.get('avgPrice', exit_p))
+                                                active_positions[coin] = {
+                                                    'side'          : rev_side,
+                                                    'entry'         : rev_entry,
+                                                    'sl'            : rev_sl,
+                                                    'dist'          : dist_s,
+                                                    'trail_dist'    : rev_trail,
+                                                    'trail_engaged' : False,
+                                                    'trail_set'     : False,
+                                                    'last_price'    : rev_entry,
+                                                    'entry_time'    : time.time(),
+                                                    'swing_val'     : setup.get('swing_val'),
+                                                    'bos_type'      : rev_stype,
+                                                    'rev_count'     : 1,
+                                                    'orig_ocl'      : setup.get(
+                                                        'orig_ocl', setup.get('entry')),
+                                                }
+                                                print(f"✅ {coin}: Reverse {rev_stype} "
+                                                      f"entry:{rev_entry:.6f} sl:{rev_sl:.6f}")
+                                            else:
+                                                print(f"⚠️ {coin}: Reverse placed tapi posisi "
+                                                      f"belum terdeteksi.")
+                                else:
+                                    # Dibatalkan (bukan filled) — setup selesai
+                                    print(f"⚠️ {coin}: Limit order dibatalkan. Setup selesai.")
+                                    done_setups[coin] = {
+                                        'swing_val': setup.get('swing_val'),
+                                        'stype'    : stype,
+                                        'used_ocl' : setup.get('entry'),
+                                    }
+                                    del pending[coin]
                             else:
                                 print(f"⏳ {coin}: Nunggu fill limit @ {setup['entry']:.6f} | "
                                       f"SL:{setup['sl']:.6f} | {stype} | H1:{curr_h1['close']:.6g}")
