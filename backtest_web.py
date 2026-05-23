@@ -53,9 +53,9 @@ COINS_SAVED = [
 # 15 coin WR > 50% dari concurrent backtest (30 coin, reverse x2)
 COINS = [
     'BELUSDT', 'ONDOUSDT', 'VIRTUALUSDT', 'ALGOUSDT',
-    'XAUTUSDT', 'FARTCOINUSDT', 'TIAUSDT', 'SANDUSDT',
+    'XAUTUSDT', 'FARTCOINUSDT',
     'BERAUSDT', 'SHIB1000USDT', 'STXUSDT', 'APEUSDT',
-    'SOLUSDT', 'LTCUSDT', 'DYDXUSDT',
+    'SOLUSDT', 'LTCUSDT',
 ]
 
 # 2025-01-01 00:00:00 UTC  →  2026-04-30 23:59:59 UTC  (dalam ms)
