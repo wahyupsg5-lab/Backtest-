@@ -237,11 +237,11 @@ def _gap_vol_fields(df, c3_idx):
             'c1_open': c1_open, 'c1_close': c1_close,
             'c1_low': c1_low,   'c1_high': c1_high}
     if 'vol' not in df.columns:
-        return {**base, 'c3_vol': 0.0, 'vol_max20h': 0.0}
+        return {**base, 'c3_vol': 0.0, 'vol_max10h': 0.0}
     c3_vol    = float(df['vol'].iloc[c3_idx])
-    avg_start = max(0, c3_idx - 20)
+    avg_start = max(0, c3_idx - 10)
     vol_max   = float(df['vol'].iloc[avg_start:c3_idx].max()) if c3_idx > 0 else 0.0
-    return {**base, 'c3_vol': c3_vol, 'vol_max20h': vol_max}
+    return {**base, 'c3_vol': c3_vol, 'vol_max10h': vol_max}
 
 
 def get_internal_gaps(df, stype, bos_idx, lookback=60):
@@ -323,7 +323,7 @@ def _get_strong_fvgs(df_h1, stype, bos_idx, choch_level=None):
     gaps = get_internal_gaps(df_h1, stype, bos_idx)
     # Hanya FVG dengan volume kuat + C1/C3 fields valid
     gaps = [g for g in gaps
-            if g.get('c3_vol', 0) > g.get('vol_max20h', 0) > 0
+            if g.get('c3_vol', 0) > g.get('vol_max10h', 0) > 0
             and g.get('c3_open', 0) > 0
             and g.get('c1_close', 0) > 0]
     # Filter FVG yang straddle CHOCH

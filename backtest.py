@@ -273,11 +273,11 @@ def _gap_vol_fields(df, c3_idx):
             'c1_open': c1_open, 'c1_close': c1_close,
             'c1_low': c1_low,   'c1_high': c1_high}
     if not has_vol:
-        return {**base, 'c3_vol': 0.0, 'vol_max20h': 0.0}
+        return {**base, 'c3_vol': 0.0, 'vol_max10h': 0.0}
     c3_vol    = float(df['vol'].iloc[c3_idx])
-    avg_start = max(0, c3_idx - 20)
+    avg_start = max(0, c3_idx - 10)
     vol_max   = float(df['vol'].iloc[avg_start:c3_idx].max()) if c3_idx > 0 else 0.0
-    return {**base, 'c3_vol': c3_vol, 'vol_max20h': vol_max}
+    return {**base, 'c3_vol': c3_vol, 'vol_max10h': vol_max}
 
 def get_internal_gaps(df, stype, bos_idx, lookback=60):
     gaps = []
@@ -702,15 +702,15 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                 # fvg_strong/fvg_sbr/fvg_50pct: hanya pakai FVG kuat (C3 vol > avg 20H)
                 if ENTRY_MODE == 'fvg_strong':
                     gaps_new = [g for g in gaps_new
-                                if g.get('c3_vol', 0) > g.get('vol_max20h', 0) > 0
+                                if g.get('c3_vol', 0) > g.get('vol_max10h', 0) > 0
                                 and g.get('c3_open', 0) > 0]
                 elif ENTRY_MODE in ('fvg_sbr', 'fvg_limit'):
                     gaps_new = [g for g in gaps_new
-                                if g.get('c3_vol', 0) > g.get('vol_max20h', 0) > 0
+                                if g.get('c3_vol', 0) > g.get('vol_max10h', 0) > 0
                                 and g.get('c1_close', 0) > 0]
                 elif ENTRY_MODE == 'fvg_50pct':
                     gaps_new = [g for g in gaps_new
-                                if g.get('c3_vol', 0) > g.get('vol_max20h', 0) > 0]
+                                if g.get('c3_vol', 0) > g.get('vol_max10h', 0) > 0]
 
                 active_bos_key     = bos_key
                 active_gaps        = gaps_new
@@ -976,7 +976,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                 _fvg_d       = gap_size
                 # FVG vol strength (C3 at formation) and gap size for analysis
                 _c3_vol  = float(used_fvg.get('c3_vol', 0.0))
-                _va20h   = float(used_fvg.get('vol_max20h', 1.0))
+                _va20h   = float(used_fvg.get('vol_max10h', 1.0))
                 _vol_ratio = round(_c3_vol / _va20h, 4) if _va20h > 0 else 0.0
                 _atr_ratio = round(gap_size / entry_p, 6) if entry_p > 0 else 0.0
             else:
@@ -1050,7 +1050,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
             _final_tp    = tp_nat
             _dist        = d; _fvg_d = gap_size
             _vol_ratio   = round(float(used_fvg.get('c3_vol',0)) /
-                                 max(float(used_fvg.get('vol_max20h',1)), 1e-9), 4)
+                                 max(float(used_fvg.get('vol_max10h',1)), 1e-9), 4)
             _atr_ratio   = round(gap_size / entry_limit, 6) if entry_limit > 0 else 0.0
 
         # ════════════════════════════════════════════════════════
@@ -1131,7 +1131,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
             _dist             = d; _fvg_d = gap_size
             _trail_ref_dist   = d_trail
             _vol_ratio        = round(float(used_fvg.get('c3_vol', 0)) /
-                                      max(float(used_fvg.get('vol_max20h', 1)), 1e-9), 4)
+                                      max(float(used_fvg.get('vol_max10h', 1)), 1e-9), 4)
             _atr_ratio        = round(gap_size / entry_limit, 6) if entry_limit > 0 else 0.0
 
         # ════════════════════════════════════════════════════════
@@ -1178,7 +1178,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
             _final_tp    = tp_nat
             _dist        = d; _fvg_d = gap_size
             _vol_ratio   = round(float(used_fvg.get('c3_vol',0)) /
-                                 max(float(used_fvg.get('vol_max20h',1)), 1e-9), 4)
+                                 max(float(used_fvg.get('vol_max10h',1)), 1e-9), 4)
             _atr_ratio   = round(gap_size / entry_limit, 6) if entry_limit > 0 else 0.0
 
         # ════════════════════════════════════════════════════════
@@ -1650,7 +1650,7 @@ def _bt_conc_detect_bos(state: dict, active_slots: set) -> None:
 
     # Filter strong FVG
     gaps = [g for g in gaps
-            if g.get('c3_vol', 0) > g.get('vol_max20h', 0) > 0
+            if g.get('c3_vol', 0) > g.get('vol_max10h', 0) > 0
             and g.get('c1_close', 0) > 0]
 
     # Filter by CHOCH
