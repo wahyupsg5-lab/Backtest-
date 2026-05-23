@@ -85,10 +85,11 @@ MAX_CONCURRENT = 3      # maks order limit aktif + posisi bersamaan (margin ×10
 APPROACH_R     = 2.0    # place limit saat harga dalam 2R dari entry
 
 SYMBOLS = [
-    # 12 coin lolos filter fvg_limit concurrent backtest (Jan2025–Apr2026)
+    # 14 coin: WR > 50% + WR tepat 50% dari concurrent backtest (Jan2025–Apr2026)
     'BELUSDT', 'ONDOUSDT', 'VIRTUALUSDT', 'ALGOUSDT',
     'XAUTUSDT', 'FARTCOINUSDT', 'BERAUSDT', 'SHIB1000USDT',
     'STXUSDT', 'APEUSDT', 'SOLUSDT', 'LTCUSDT',
+    'EIGENUSDT', 'FLOWUSDT',
 ]
 
 ATR_THRESHOLD = {
