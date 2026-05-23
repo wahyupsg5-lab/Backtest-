@@ -818,6 +818,22 @@ def run_bot():
             except Exception as e:
                 print(f"⚠️ Trailing SL {coin}: {e}")
 
+        # Summary slot setiap M5
+        n_active   = len(active_positions)
+        n_waitfill = sum(1 for s in pending.values() if s.get('phase') == 'WAIT_FILL')
+        n_approach = sum(1 for s in pending.values() if s.get('phase') == 'WAIT_APPROACH')
+        slots_used = n_active + n_waitfill
+        print(f"\n{'='*55}")
+        print(f"📊 SLOT: {slots_used}/{MAX_CONCURRENT} terpakai "
+              f"(posisi:{n_active} | limit:{n_waitfill} | watch:{n_approach})")
+        if active_positions:
+            print(f"   Aktif: {', '.join(active_positions.keys())}")
+        if pending:
+            for c, s in pending.items():
+                ph = s.get('phase','?')
+                print(f"   {c}: {ph} {s.get('type','?')} @ {s.get('entry',0):.6g}")
+        print(f"{'='*55}")
+
         for coin in SYMBOLS:
             try:
                 time.sleep(3)
@@ -1142,6 +1158,7 @@ def run_bot():
                         bos_idx   = sh_h1[-1]['idx'] if sh_h1 else sl['idx']
 
                 if not (is_long or is_short):
+                    print(f"   {coin}: tidak ada BOS H1")
                     continue
                 if swing_val is None or bos_idx is None:
                     continue
@@ -1159,6 +1176,7 @@ def run_bot():
                 df_h1_snap = df_h1_live.copy()
                 gaps = _get_strong_fvgs(df_h1_snap, stype, bos_idx, choch_level)
                 if not gaps:
+                    print(f"   {coin}: BOS {stype} @ {swing_val:.6g} — tidak ada FVG kuat")
                     continue
 
                 # Deduplikasi: jangan overwrite setup yang sama
