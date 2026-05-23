@@ -1629,9 +1629,6 @@ def _bt_conc_detect_bos(state: dict, active_slots: set) -> None:
     existing = state['pending']
     if existing and existing.get('bos_key') == bos_key:
         return
-    # Skip jika BOS ini sudah pernah ditrade
-    if state['done_bos'] == bos_key:
-        return
 
     # CHOCH level
     if stype == 'Long':
@@ -1695,6 +1692,20 @@ def _bt_conc_detect_bos(state: dict, active_slots: set) -> None:
     # d_trail: c1_mid based (sama dengan dist SL)
     d_trail = dist
 
+    # OCL flip check: BOS sama + OCL sama → entry dibalik (zone sudah ditest, kekuatan berbalik)
+    done       = state['done_bos']
+    stype_eff  = stype
+    sl_pending = c1_mid    # default: sl = c1_mid (arah original)
+    choch_eff  = choch_level
+    if done is not None and done.get('bos_key') == bos_key:
+        used_ocl = done.get('used_ocl', 0)
+        if used_ocl > 0 and c1_c > 0 and abs(c1_c - used_ocl) / c1_c < 0.001:
+            # OCL sama → flip direction
+            stype_eff  = 'Short' if stype == 'Long' else 'Long'
+            sl_pending = c1_c + dist if stype_eff == 'Short' else c1_c - dist
+            choch_eff  = None   # CHOCH original tidak valid untuk arah terbalik
+        # else: OCL beda (FVG fresh) → direction tetap, sl tetap c1_mid
+
     # Jika ada pending berbeda → override (lepas slot lama jika WAIT_FILL)
     if existing and existing.get('phase') == 'WAIT_FILL':
         active_slots.discard(state['sym'])
@@ -1703,11 +1714,11 @@ def _bt_conc_detect_bos(state: dict, active_slots: set) -> None:
         'bos_key'     : bos_key,
         'phase'       : 'WAIT_APPROACH',
         'entry'       : c1_c,
-        'sl'          : c1_mid,
+        'sl'          : sl_pending,
         'dist'        : dist,
         'd_trail'     : d_trail,
-        'stype'       : stype,
-        'choch_level' : choch_level,
+        'stype'       : stype_eff,
+        'choch_level' : choch_eff,
         'swing_val'   : swing_val,
     }
 
@@ -1905,12 +1916,16 @@ def backtest_concurrent(coins_data: dict,
                         'trail_no_move' : 0,
                         'trail_prev_sl' : rev_sl,
                         'rev_count'     : rev_count + 1,
+                        'orig_ocl'      : trade.get('orig_ocl', trade['entry']),
                     }
                     # Slot tetap di active_slots (tidak discard)
                 else:
                     active_slots.discard(sym)
-                    state['done_bos'] = None   # reset → bisa re-entry di BOS yang sama
-                    state['trade']    = None
+                    state['done_bos'] = {
+                        'bos_key' : trade.get('done_key'),
+                        'used_ocl': trade.get('orig_ocl', trade['entry']),
+                    }
+                    state['trade'] = None
 
         # ── 2. Pending setup handling ─────────────────────────────────────
         elif state['pending'] is not None:
@@ -1965,6 +1980,7 @@ def backtest_concurrent(coins_data: dict,
                         'done_key'      : pending['bos_key'],
                         'trail_no_move' : 0,
                         'trail_prev_sl' : sl_nat,
+                        'orig_ocl'      : entry,   # OCL asli untuk perbandingan re-entry
                     }
                     state['done_bos'] = pending['bos_key']
                     state['pending']  = None
