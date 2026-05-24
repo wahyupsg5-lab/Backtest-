@@ -519,47 +519,47 @@ def _run():
             wr = total_w / total_n * 100 if total_n else 0
             cpnl = concurrent_final - INITIAL_BALANCE
 
-            # Hitung avg R:R keseluruhan
-            all_rr = []
-            for t in concurrent_trades:
+            def _rr(t):
                 dist_t = t.get('dist', 0)
-                if dist_t > 0:
-                    stype_t = t.get('type', 'Long')
-                    r_val = (t['exit_price'] - t['entry']) / dist_t if stype_t == 'Long' \
-                            else (t['entry'] - t['exit_price']) / dist_t
-                    all_rr.append(r_val)
-            overall_rr = sum(all_rr) / len(all_rr) if all_rr else 0.0
+                if dist_t <= 0: return None
+                stype_t = t.get('type', 'Long')
+                return (t['exit_price'] - t['entry']) / dist_t if stype_t == 'Long' \
+                       else (t['entry'] - t['exit_price']) / dist_t
 
-            _log_msg(f"TOTAL: {total_n} trade | WR:{wr:.1f}% | AvgRR:{overall_rr:.2f}:1 | "
+            win_rr  = [r for t in concurrent_trades if t['outcome'] == 'tp'  and (r := _rr(t)) is not None]
+            loss_rr = [r for t in concurrent_trades if t['outcome'] != 'tp'  and (r := _rr(t)) is not None]
+            avg_win  = sum(win_rr)  / len(win_rr)  if win_rr  else 0.0
+            avg_loss = sum(loss_rr) / len(loss_rr) if loss_rr else 0.0
+
+            _log_msg(f"TOTAL: {total_n} trade | WR:{wr:.1f}% | "
+                     f"AvgWin:{avg_win:.2f}R | AvgLoss:{avg_loss:.2f}R | "
                      f"Compound: ${INITIAL_BALANCE:.2f} → ${concurrent_final:.2f} "
                      f"(+${cpnl:.2f}, +{cpnl/INITIAL_BALANCE*100:.0f}% ROI)")
 
             # Per-coin breakdown
             from collections import defaultdict
-            coin_stats = defaultdict(lambda: {'n': 0, 'w': 0, 'pnl': 0, 'rr': []})
+            coin_stats = defaultdict(lambda: {'n': 0, 'w': 0, 'pnl': 0, 'win_rr': [], 'loss_rr': []})
             for t in concurrent_trades:
                 s = coin_stats[t['symbol']]
                 s['n']   += 1
                 s['w']   += 1 if t['outcome'] == 'tp' else 0
                 s['pnl'] += t['pnl_usd']
-                dist_t = t.get('dist', 0)
-                if dist_t > 0:
-                    stype_t = t.get('type', 'Long')
-                    if stype_t == 'Long':
-                        r_val = (t['exit_price'] - t['entry']) / dist_t
+                r = _rr(t)
+                if r is not None:
+                    if t['outcome'] == 'tp':
+                        s['win_rr'].append(r)
                     else:
-                        r_val = (t['entry'] - t['exit_price']) / dist_t
-                    s['rr'].append(r_val)
+                        s['loss_rr'].append(r)
             _log_msg("\nPer-coin (trade efektif setelah slot filter):")
             for sym in COINS:
                 s = coin_stats.get(sym)
                 if not s or s['n'] == 0:
                     _log_msg(f"  {sym:<20} — tidak ada trade")
                 else:
-                    wr_c   = s['w'] / s['n'] * 100
-                    rr_all = s['rr']
-                    avg_rr = sum(rr_all) / len(rr_all) if rr_all else 0.0
-                    rr_str = f"AvgRR:{avg_rr:.2f}:1" if rr_all else "AvgRR:—"
+                    wr_c     = s['w'] / s['n'] * 100
+                    aw = sum(s['win_rr'])  / len(s['win_rr'])  if s['win_rr']  else 0.0
+                    al = sum(s['loss_rr']) / len(s['loss_rr']) if s['loss_rr'] else 0.0
+                    rr_str = f"Win:{aw:.2f}R Loss:{al:.2f}R"
                     _log_msg(f"  {sym:<20} {s['n']:>4} trade | WR:{wr_c:.0f}% | "
                              f"PnL:${s['pnl']:.2f} | {rr_str}")
 
