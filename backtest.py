@@ -1744,7 +1744,7 @@ def _bt_conc_update_trade(trade: dict, h: float, l: float, c: float,
         if stype == 'Long':
             if h > peak:
                 peak = h; trade['peak'] = peak
-                if peak >= entry + 1.5 * dist:
+                if peak >= entry + dist:
                     new_tsl = max(entry, peak - TRAIL_STOP * d_trail)
                     if new_tsl > trail_sl:
                         trail_sl = new_tsl; trade['trail_sl'] = trail_sl
@@ -1758,7 +1758,7 @@ def _bt_conc_update_trade(trade: dict, h: float, l: float, c: float,
         else:  # Short
             if l < peak:
                 peak = l; trade['peak'] = peak
-                if peak <= entry - 1.5 * dist:
+                if peak <= entry - dist:
                     new_tsl = min(entry, peak + TRAIL_STOP * d_trail)
                     if new_tsl < trail_sl:
                         trail_sl = new_tsl; trade['trail_sl'] = trail_sl
