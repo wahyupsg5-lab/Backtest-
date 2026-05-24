@@ -50,16 +50,16 @@ COINS_SAVED = [
     'LTCUSDT', 'DYDXUSDT', 'FLOWUSDT', 'ICPUSDT',
 ]
 
-# 17 coin: WR ≥ 45% + positif PnL dari concurrent backtest (30 coin, reverse x2)
+# 27 coin: hapus SOLUSDT, SEIUSDT, TIAUSDT, HBARUSDT (WR rendah / PnL negatif)
 COINS = [
-    # Batch 1 (21 coin)
+    # Batch 1
     'XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT', '1000PEPEUSDT',
     'ONDOUSDT', 'VIRTUALUSDT', 'ENAUSDT', 'SHIB1000USDT',
-    'JUPUSDT', 'SEIUSDT', 'OPUSDT',
+    'JUPUSDT', 'OPUSDT',
     'ALGOUSDT', 'ORCAUSDT', 'XRPUSDT', 'XAUTUSDT', 'FARTCOINUSDT', 'TAOUSDT',
-    # Batch 2 (14 coin)
-    'SOLUSDT', 'SUIUSDT', 'TIAUSDT', 'AAVEUSDT', 'GALAUSDT',
-    'IMXUSDT', 'GMXUSDT', 'HBARUSDT', 'SANDUSDT', 'AXSUSDT',
+    # Batch 2
+    'SUIUSDT', 'AAVEUSDT', 'GALAUSDT',
+    'IMXUSDT', 'GMXUSDT', 'SANDUSDT', 'AXSUSDT',
     'LTCUSDT', 'DYDXUSDT', 'ICPUSDT',
 ]
 

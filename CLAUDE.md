@@ -53,23 +53,20 @@ WAIT_FVG_TOUCH → WAIT_IDM_TOUCH → WAIT_BOS_BREAK → WAIT_IDM_TOUCH → WAIT
 - Leverage: otomatis sesuai limit coin, maks 10×
 - Fee: 0.055% per sisi (Bybit taker)
 
-### SYMBOLS — 35 coin aktif:
+### SYMBOLS — 27 coin aktif:
 ```python
 SYMBOLS = [
-    # Batch 1 (21 coin)
-    'XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT',
-    '1000PEPEUSDT',
-    'ONDOUSDT', 'EIGENUSDT', 'VIRTUALUSDT',
-    'ENAUSDT', 'SHIB1000USDT',
-    'JUPUSDT', 'SEIUSDT', 'OPUSDT',
-    'STXUSDT', 'APEUSDT', 'ALGOUSDT',
-    'ORCAUSDT', 'XRPUSDT', 'XAUTUSDT', 'FARTCOINUSDT', 'TAOUSDT',
-    # Batch 2 lolos filter (14 coin)
-    'SOLUSDT', 'SUIUSDT', 'TIAUSDT',
-    'AAVEUSDT', 'GALAUSDT', 'IMXUSDT', 'GMXUSDT',
-    'HBARUSDT', 'SANDUSDT', 'AXSUSDT',
-    'LTCUSDT', 'DYDXUSDT', 'FLOWUSDT', 'ICPUSDT',
+    # Batch 1
+    'XVGUSDT', 'BELUSDT', '1000BONKUSDT', 'BERAUSDT', '1000PEPEUSDT',
+    'ONDOUSDT', 'VIRTUALUSDT', 'ENAUSDT', 'SHIB1000USDT',
+    'JUPUSDT', 'OPUSDT',
+    'ALGOUSDT', 'ORCAUSDT', 'XRPUSDT', 'XAUTUSDT', 'FARTCOINUSDT', 'TAOUSDT',
+    # Batch 2
+    'SUIUSDT', 'AAVEUSDT', 'GALAUSDT',
+    'IMXUSDT', 'GMXUSDT', 'SANDUSDT', 'AXSUSDT',
+    'LTCUSDT', 'DYDXUSDT', 'ICPUSDT',
 ]
+# Dihapus: SOLUSDT, SEIUSDT, TIAUSDT, HBARUSDT (WR rendah / PnL negatif)
 ```
 
 ### ATR Filter Adaptif (threshold per coin):
