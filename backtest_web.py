@@ -563,6 +563,33 @@ def _run():
                     _log_msg(f"  {sym:<20} {s['n']:>4} trade | WR:{wr_c:.0f}% | "
                              f"PnL:${s['pnl']:.2f} | {rr_str}")
 
+            # ── Per-bulan breakdown ───────────────────────────────────────
+            import calendar
+            monthly = {}
+            for t in concurrent_trades:
+                ts_ms = t.get('entry_ts') or t.get('exit_ts')
+                if not ts_ms:
+                    continue
+                dt  = pd.Timestamp(ts_ms, unit='ms')
+                key = (dt.year, dt.month)
+                if key not in monthly:
+                    monthly[key] = {'n': 0, 'w': 0, 'pnl': 0.0, 'win_rr': []}
+                m = monthly[key]
+                m['n']   += 1
+                m['w']   += 1 if t['outcome'] == 'tp' else 0
+                m['pnl'] += t['pnl_usd']
+                r = _rr(t)
+                if r is not None and t['outcome'] == 'tp':
+                    m['win_rr'].append(r)
+            _log_msg("\nPer-bulan:")
+            for (yr, mo) in sorted(monthly.keys()):
+                m    = monthly[(yr, mo)]
+                wr_m = m['w'] / m['n'] * 100 if m['n'] else 0
+                aw_m = sum(m['win_rr']) / len(m['win_rr']) if m['win_rr'] else 0.0
+                name = f"{calendar.month_abbr[mo]}-{yr}"
+                _log_msg(f"  {name:<12} {m['n']:>4} trade | WR:{wr_m:.0f}% | "
+                         f"PnL:${m['pnl']:.2f} | AvgWin:{aw_m:.2f}R")
+
         with _lock:
             _phase = 'done'
             _results = []
