@@ -518,7 +518,19 @@ def _run():
             total_w = sum(1 for t in concurrent_trades if t['outcome'] == 'tp')
             wr = total_w / total_n * 100 if total_n else 0
             cpnl = concurrent_final - INITIAL_BALANCE
-            _log_msg(f"TOTAL: {total_n} trade | WR:{wr:.1f}% | "
+
+            # Hitung avg R:R keseluruhan
+            all_rr = []
+            for t in concurrent_trades:
+                dist_t = t.get('dist', 0)
+                if dist_t > 0:
+                    stype_t = t.get('type', 'Long')
+                    r_val = (t['exit_price'] - t['entry']) / dist_t if stype_t == 'Long' \
+                            else (t['entry'] - t['exit_price']) / dist_t
+                    all_rr.append(r_val)
+            overall_rr = sum(all_rr) / len(all_rr) if all_rr else 0.0
+
+            _log_msg(f"TOTAL: {total_n} trade | WR:{wr:.1f}% | AvgRR:{overall_rr:.2f}:1 | "
                      f"Compound: ${INITIAL_BALANCE:.2f} → ${concurrent_final:.2f} "
                      f"(+${cpnl:.2f}, +{cpnl/INITIAL_BALANCE*100:.0f}% ROI)")
 
