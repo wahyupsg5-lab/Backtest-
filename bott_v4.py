@@ -491,7 +491,6 @@ def place_limit_order(symbol, side, entry_p, sl_p):
             category=CATEGORY, symbol=symbol, side=side,
             orderType="Limit", qty=str(qty),
             price=str(entry_r),
-            stopLoss=str(sl_r),
             positionIdx=0,
             timeInForce="GTC"
         )
@@ -951,6 +950,17 @@ def run_bot():
                               f"entry:{entry:.6f} thr:{approach_thr:.6f} | {status_str}")
 
                         if approaching:
+                            # Validasi arah: limit hanya valid jika harga belum melewati OCL
+                            # Long: curr > entry (harga di atas, menunggu turun ke OCL)
+                            # Short: curr < entry (harga di bawah, menunggu naik ke OCL)
+                            direction_valid = (stype == 'Long'  and curr_price > entry) or \
+                                              (stype == 'Short' and curr_price < entry)
+                            if not direction_valid:
+                                print(f"⛔ {coin}: Harga {curr_price:.6f} sudah melewati OCL "
+                                      f"{entry:.6f} ({stype}) — setup dibatalkan.")
+                                done_setups.pop(coin, None)
+                                del pending[coin]; continue
+
                             active_count = len(active_positions) + sum(
                                 1 for s in pending.values() if s.get('phase') == 'WAIT_FILL')
                             if active_count >= MAX_CONCURRENT:
@@ -990,29 +1000,44 @@ def run_bot():
                             sl_p       = setup['sl']
                             dist       = setup['dist']
                             side_order = "Buy" if stype == "Long" else "Sell"
-                            trail_d    = TRAIL_STOP * dist
-                            info       = get_instrument_info(coin)
-                            tick       = info.get('tick_size', 0.0001)
-                            trail_r    = round_price(trail_d, tick)
-                            active_p   = round_price(
-                                entry_p + dist if side_order == "Buy"
-                                else entry_p - dist, tick)
-                            if trail_r > 0 and active_p > 0:
-                                try:
-                                    session.set_trading_stop(
-                                        category=CATEGORY, symbol=coin,
-                                        trailingStop=str(trail_r),
-                                        activePrice=str(active_p),
-                                        positionIdx=0
-                                    )
-                                except Exception:
-                                    pass
                             actual_entry = float(pos.get('avgPrice', entry_p))
+
+                            # Recalc dist dari actual fill price agar SL tidak mepet
+                            actual_dist = abs(actual_entry - sl_p)
+                            min_dist    = actual_entry * 0.002
+                            if actual_dist < min_dist:
+                                # SL terlalu mepet ke actual fill → perlebar SL ke min_dist
+                                actual_dist = min_dist
+                                sl_p = actual_entry - actual_dist if side_order == "Buy" \
+                                       else actual_entry + actual_dist
+                                print(f"⚠️ {coin}: Actual fill {actual_entry:.6f} vs OCL "
+                                      f"{entry_p:.6f} — SL diperlebar ke {sl_p:.6f}")
+
+                            trail_d = TRAIL_STOP * actual_dist
+                            info    = get_instrument_info(coin)
+                            tick    = info.get('tick_size', 0.0001)
+                            sl_r    = round_price(sl_p, tick)
+                            trail_r = round_price(trail_d, tick)
+                            active_p = round_price(
+                                actual_entry + actual_dist if side_order == "Buy"
+                                else actual_entry - actual_dist, tick)
+                            try:
+                                params = dict(
+                                    category=CATEGORY, symbol=coin,
+                                    stopLoss=str(sl_r),
+                                    positionIdx=0
+                                )
+                                if trail_r > 0 and active_p > 0:
+                                    params['trailingStop'] = str(trail_r)
+                                    params['activePrice']  = str(active_p)
+                                session.set_trading_stop(**params)
+                            except Exception as e:
+                                print(f"⚠️ {coin}: set_trading_stop error: {e}")
                             active_positions[coin] = {
                                 'side'          : side_order,
                                 'entry'         : actual_entry,
                                 'sl'            : sl_p,
-                                'dist'          : dist,
+                                'dist'          : actual_dist,
                                 'trail_dist'    : trail_d,
                                 'trail_engaged' : False,
                                 'trail_set'     : True,
