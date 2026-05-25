@@ -713,6 +713,8 @@ def check_trailing_sl(coin):
             tick       = info.get('tick_size', 0.0001)
             trail_r    = round_price(trail_dist, tick)
             active_p   = round_price(entry + 1.0 * dist if side == "Buy" else entry - 1.0 * dist, tick)
+            print(f"🔧 {coin}: Pasang trail: trailingStop={trail_r} activePrice={active_p} "
+                  f"(entry={entry:.6f} dist={dist:.6f} = {dist/entry*100:.3f}%)")
             if trail_r > 0 and active_p > 0:
                 try:
                     res_ts = session.set_trading_stop(
@@ -1084,6 +1086,7 @@ def run_bot():
                             active_p = round_price(
                                 actual_entry + actual_dist if side_order == "Buy"
                                 else actual_entry - actual_dist, tick)
+                            trail_set_ok = False
                             for _attempt in range(3):
                                 try:
                                     params = dict(
@@ -1096,7 +1099,9 @@ def run_bot():
                                         params['activePrice']  = str(active_p)
                                     res_ts = session.set_trading_stop(**params)
                                     if res_ts.get('retCode', -1) == 0:
-                                        print(f"🛡️  {coin}: SL={sl_r} Trail={trail_r} activePrice={active_p} dipasang")
+                                        trail_set_ok = True
+                                        print(f"🛡️  {coin}: SL={sl_r} Trail={trail_r} "
+                                              f"activePrice={active_p} (+1R) dipasang")
                                         break
                                     else:
                                         print(f"⚠️ {coin}: set_trading_stop gagal (attempt {_attempt+1}): "
@@ -1105,6 +1110,8 @@ def run_bot():
                                 except Exception as e:
                                     print(f"⚠️ {coin}: set_trading_stop error (attempt {_attempt+1}): {e}")
                                     time.sleep(2)
+                            if not trail_set_ok:
+                                print(f"⚠️ {coin}: Trail gagal dipasang — akan retry di M5 berikutnya")
                             active_positions[coin] = {
                                 'side'          : side_order,
                                 'entry'         : actual_entry,
@@ -1112,7 +1119,7 @@ def run_bot():
                                 'dist'          : actual_dist,
                                 'trail_dist'    : trail_d,
                                 'trail_engaged' : False,
-                                'trail_set'     : True,
+                                'trail_set'     : trail_set_ok,  # False = retry by check_trailing_sl
                                 'last_price'    : actual_entry,
                                 'entry_time'    : time.time(),
                                 'swing_val'     : setup.get('swing_val'),
