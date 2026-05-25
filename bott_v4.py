@@ -681,7 +681,7 @@ def check_trailing_sl(coin):
             info       = get_instrument_info(coin)
             tick       = info.get('tick_size', 0.0001)
             trail_r    = round_price(trail_dist, tick)
-            active_p   = round_price(entry + 2.0 * dist if side == "Buy" else entry - 2.0 * dist, tick)
+            active_p   = round_price(entry + 1.25 * dist if side == "Buy" else entry - 1.25 * dist, tick)
             if trail_r > 0 and active_p > 0:
                 try:
                     res_ts = session.set_trading_stop(
@@ -701,12 +701,12 @@ def check_trailing_sl(coin):
                     print(f"⚠️ {coin}: set_trading_stop error: {e}")
 
         if dist > 0 and not p.get('trail_engaged', False):
-            if side == "Buy"  and curr_price >= entry + 2.0 * dist:
+            if side == "Buy"  and curr_price >= entry + 1.25 * dist:
                 active_positions[coin]['trail_engaged'] = True
-                print(f"✅ {coin}: Trail engaged @ {curr_price:.6f} (BE+ 2.0R = OCL+1R)")
-            elif side == "Sell" and curr_price <= entry - 2.0 * dist:
+                print(f"✅ {coin}: Trail engaged @ {curr_price:.6f} (+1.25R)")
+            elif side == "Sell" and curr_price <= entry - 1.25 * dist:
                 active_positions[coin]['trail_engaged'] = True
-                print(f"✅ {coin}: Trail engaged @ {curr_price:.6f} (BE+ 2.0R = OCL+1R)")
+                print(f"✅ {coin}: Trail engaged @ {curr_price:.6f} (+1.25R)")
     except Exception:
         pass
 
@@ -1315,23 +1315,19 @@ def run_bot():
                     c1_h   = float(chosen_fvg['c1_high'])
                     gap_s  = float(chosen_fvg['top']) - float(chosen_fvg['bottom'])
 
-                    # Entry 25% dari OCL ke dalam c1, SL 50% dari OCL
-                    # dist = 25% × c1_range (= entry-to-SL = 1R)
+                    # Entry di OCL (c1_close), SL di c1_mid
+                    c1_mid = (c1_h + c1_l) / 2.0
                     if stype == 'Long':
-                        c1_range = max(c1_c - c1_l, c1_c * 0.002 * 2)
+                        entry_adj = c1_c
+                        sl_entry  = c1_mid
+                        dist      = entry_adj - sl_entry
                     else:
-                        c1_range = max(c1_h - c1_c, c1_c * 0.002 * 2)
-                    dist = c1_range * 0.25
+                        entry_adj = c1_c
+                        sl_entry  = c1_mid
+                        dist      = sl_entry - entry_adj
 
                     if dist < c1_c * 0.002:
                         continue  # SL terlalu dekat entry
-
-                    if stype == 'Long':
-                        entry_adj = c1_c - dist       # 25% di bawah OCL
-                        sl_entry  = c1_c - dist * 2   # 50% di bawah OCL
-                    else:
-                        entry_adj = c1_c + dist       # 25% di atas OCL
-                        sl_entry  = c1_c + dist * 2   # 50% di atas OCL
 
                     # OCL flip: BOS sama + OCL sama → entry dibalik (zone sudah ditest)
                     done = done_setups.get(coin)
@@ -1341,20 +1337,20 @@ def run_bot():
                         if done.get('swing_val') == swing_val and done.get('stype') == stype:
                             used_ocl = done.get('used_ocl', 0)
                             if used_ocl > 0 and abs(c1_c - used_ocl) / c1_c < 0.001:
-                                # OCL sama → flip direction
+                                # OCL sama → flip direction (mirror dist di sisi berlawanan)
                                 stype_eff = 'Short' if stype == 'Long' else 'Long'
                                 if stype_eff == 'Short':
-                                    entry_adj = c1_c + dist
-                                    sl_entry  = c1_c + dist * 2
+                                    entry_adj = c1_c
+                                    sl_entry  = c1_c + dist  # SL di atas OCL untuk Short
                                 else:
-                                    entry_adj = c1_c - dist
-                                    sl_entry  = c1_c - dist * 2
+                                    entry_adj = c1_c
+                                    sl_entry  = c1_c - dist  # SL di bawah OCL untuk Long
                                 choch_eff = None
                             # else: OCL beda (FVG fresh) → proceed normal
 
                     choch_str = f"{choch_eff:.6g}" if choch_eff else "—"
                     print(f"\n📊 {coin} | BOS {stype_eff} | OCL:{c1_c:.6f} "
-                          f"Entry(25%):{entry_adj:.6f} SL(50%):{sl_entry:.6f} "
+                          f"Entry:{entry_adj:.6f} SL(c1_mid):{sl_entry:.6f} "
                           f"dist:{dist/c1_c*100:.3f}% | GapPct:{gap_s/c1_c*100:.3f}% | CHOCH:{choch_str}")
 
                     # Simpan sebagai WAIT_APPROACH — order belum dipasang, belum pakai margin

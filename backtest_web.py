@@ -507,7 +507,8 @@ def _run():
             except Exception as e:
                 _log_msg(f"   ❌ {symbol}: {e}")
 
-        _log_msg(f"\n🔄 Concurrent backtest: {len(coins_data)} coin, max {bt.MAX_CONCURRENT} slot...")
+        bt.REQUIRE_BOS = False  # FVG-only mode: tidak perlu BOS H1
+        _log_msg(f"\n🔄 Concurrent backtest (FVG-only): {len(coins_data)} coin, max {bt.MAX_CONCURRENT} slot...")
         concurrent_trades, concurrent_final, monthly_diag_bt = bt.backtest_concurrent(
             coins_data, initial_balance=INITIAL_BALANCE, max_concurrent=bt.MAX_CONCURRENT)
 
