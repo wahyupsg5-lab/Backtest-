@@ -30,6 +30,7 @@ TP_MULT      = 2.0      # TP distance dari titik 0 (dalam R unit)
 ENTRY_R      = 8.0      # fvg_rev_limit: level limit entry dari titik 0 (dalam R)
 TIME_FILTER  = 0        # max candles FVG→MSS (0 = disabled)
 TRAIL_STOP   = 0.50     # trailing SL step dalam R — sinkron dengan bott_v4.py
+TRAIL_ACT_R  = 2.0      # trail aktif setelah +TRAIL_ACT_R dari entry (Bybit min ≥ trailingStop)
 TOUCH_VOL_MIN = 0.8     # fvg_strong: touch candle vol min (× avg 20 M5 candle; 0 = no filter)
 MAX_GAP_PCT   = 0.006   # fvg_strong: max gap_size / entry_p — sinkron dengan bott_v4.py
 APPROACH_R    = 2.0     # fvg_limit: place order saat harga dalam 2R dari entry
@@ -559,7 +560,7 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance,
             # Baru update peak & trail dari H (untuk candle berikutnya)
             if TRAIL_STOP > 0 and h > peak:
                 peak = h
-                if peak >= entry + _td:
+                if peak >= entry + TRAIL_ACT_R * _td:
                     new_tsl  = max(entry, peak - TRAIL_STOP * _td)
                     trail_sl = max(trail_sl, new_tsl)
                     trail_engaged = True
@@ -576,7 +577,7 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance,
             # Baru update peak & trail dari L (untuk candle berikutnya)
             if TRAIL_STOP > 0 and l < peak:
                 peak = l
-                if peak <= entry - _td:
+                if peak <= entry - TRAIL_ACT_R * _td:
                     new_tsl  = min(entry, peak + TRAIL_STOP * _td)
                     trail_sl = min(trail_sl, new_tsl)
                     trail_engaged = True
@@ -1790,7 +1791,7 @@ def _bt_conc_update_trade(trade: dict, h: float, l: float, c: float,
             # Baru update peak & trail dari HIGH (untuk candle berikutnya)
             if h > peak:
                 peak = h; trade['peak'] = peak
-                if peak >= entry + 1.0 * dist:
+                if peak >= entry + TRAIL_ACT_R * dist:
                     new_tsl = max(entry, peak - TRAIL_STOP * d_trail)
                     if new_tsl > trail_sl:
                         trail_sl = new_tsl; trade['trail_sl'] = trail_sl
@@ -1805,7 +1806,7 @@ def _bt_conc_update_trade(trade: dict, h: float, l: float, c: float,
             # Baru update peak & trail dari LOW (untuk candle berikutnya)
             if l < peak:
                 peak = l; trade['peak'] = peak
-                if peak <= entry - 1.0 * dist:
+                if peak <= entry - TRAIL_ACT_R * dist:
                     new_tsl = min(entry, peak + TRAIL_STOP * d_trail)
                     if new_tsl < trail_sl:
                         trail_sl = new_tsl; trade['trail_sl'] = trail_sl
