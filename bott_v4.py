@@ -81,7 +81,7 @@ SBR_MODE      = True    # True = SBR entry di C1.close + SL di C1.low, False = O
 ENTRY_MODE    = 'fvg_limit'  # 'fvg_sbr' (market saat touch) | 'fvg_limit' (limit langsung di BOS)
 TOUCH_VOL_MIN = 0.8     # touch candle volume min (× avg 20 M5 candle) — hanya dipakai fvg_sbr
 MAX_GAP_PCT   = 0.006   # max gap_size / entry_price (FVG ≤ 0.60%)
-MAX_CONCURRENT = 3      # maks order limit aktif + posisi bersamaan (margin ×10 ~3 posisi 100%)
+MAX_CONCURRENT = 5      # maks order limit aktif + posisi bersamaan
 APPROACH_R     = 2.0    # place limit saat harga dalam 2R dari entry
 REQUIRE_BOS    = False  # True = BOS H1 dulu; False = FVG kuat langsung (FVG-only mode)
 
