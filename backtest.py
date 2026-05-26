@@ -967,7 +967,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
                 _entry_price = entry_p
                 _sl_price    = sl_p
                 _final_tp    = tp_p if TRAIL_STOP == 0 else (
-                    entry_p + 1000 * gap_size if stype == "Long" else entry_p - 1000 * gap_size)
+                    entry_p + 3 * d if stype == "Long" else entry_p - 3 * d)
                 _dist        = d
                 _fvg_d       = gap_size
                 # FVG vol strength (C3 at formation) and gap size for analysis
@@ -1040,7 +1040,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
             if TOUCH_VOL_MIN > 0 and 0 < _touch_vol_ratio < TOUCH_VOL_MIN:
                 c_dir_fail += 1; i += 12; continue
 
-            tp_nat = (entry_limit + 1000 * d) if stype == "Long" else (entry_limit - 1000 * d)
+            tp_nat = (entry_limit + 3 * d) if stype == "Long" else (entry_limit - 3 * d)
             _entry_idx   = fill_idx; _entry_price = entry_limit
             _sl_price    = sl_nat
             _final_tp    = tp_nat
@@ -1120,7 +1120,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
             if fill_idx is None:
                 c_dir_fail += 1; i += 12; continue
 
-            tp_nat = (entry_limit + 1000 * d) if stype == "Long" else (entry_limit - 1000 * d)
+            tp_nat = (entry_limit + 3 * d) if stype == "Long" else (entry_limit - 3 * d)
             _entry_idx        = fill_idx; _entry_price = entry_limit
             _sl_price         = sl_nat
             _final_tp         = tp_nat
@@ -1168,7 +1168,7 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
             if fill_idx is None:
                 c_dir_fail += 1; i += 12; continue
 
-            tp_nat = (entry_limit + 1000 * d) if stype == "Long" else (entry_limit - 1000 * d)
+            tp_nat = (entry_limit + 3 * d) if stype == "Long" else (entry_limit - 3 * d)
             _entry_idx   = fill_idx; _entry_price = entry_limit
             _sl_price    = sl_nat
             _final_tp    = tp_nat
@@ -2017,7 +2017,7 @@ def backtest_concurrent(coins_data: dict,
                     d       = dist
                     d_trail = pending.get('d_trail', dist)
                     sl_nat  = pending['sl']
-                    tp_nat  = entry + 1000 * d if stype == 'Long' else entry - 1000 * d
+                    tp_nat  = entry + 3 * d if stype == 'Long' else entry - 3 * d
                     _fee    = 2 * TAKER_FEE * entry * (balance * RISK_PCT) / d if d > 0 else 0.0
                     state['trade'] = {
                         'entry'         : entry,
