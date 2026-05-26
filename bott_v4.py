@@ -461,8 +461,7 @@ def place_market_order(symbol, side, entry, sl, trail_dist):
 
 def place_limit_order(symbol, side, entry_p, sl_p):
     """
-    Limit order GTC di entry_p, SL di sl_p.
-    Trail dipasang setelah fill terdeteksi via WAIT_FILL loop.
+    Limit order GTC di entry_p, SL + trailing stop langsung dalam satu order.
     """
     try:
         info    = get_instrument_info(symbol)
@@ -487,8 +486,12 @@ def place_limit_order(symbol, side, entry_p, sl_p):
             print(f"⚠️ {symbol}: Qty {qty} < minOrderQty {info['min_qty']}, skip.")
             return None
 
-        entry_r = round_price(entry_p, info['tick_size'])
-        sl_r    = round_price(sl_p,    info['tick_size'])
+        entry_r  = round_price(entry_p,                     info['tick_size'])
+        sl_r     = round_price(sl_p,                        info['tick_size'])
+        trail_r  = round_price(TRAIL_STOP * dist,           info['tick_size'])
+        active_r = round_price(
+            entry_p + TRAIL_ACT_R * dist if side == "Buy"
+            else entry_p - TRAIL_ACT_R * dist,             info['tick_size'])
 
         lev_int = 10
         try:
@@ -511,7 +514,7 @@ def place_limit_order(symbol, side, entry_p, sl_p):
             return None
 
         print(f"   Balance:{balance:.2f} Avail:{avail:.2f} Risk:{risk_usd:.2f} Dist:{dist:.6f} "
-              f"Qty:{qty} LimitEntry:{entry_r} SL:{sl_r} Lev:{lev_int}x "
+              f"Trail:{trail_r} ActiveP:{active_r} Qty:{qty} Entry:{entry_r} SL:{sl_r} Lev:{lev_int}x "
               f"Margin:~${required_margin:.2f}")
 
         res = session.place_order(
@@ -519,6 +522,8 @@ def place_limit_order(symbol, side, entry_p, sl_p):
             orderType="Limit", qty=str(qty),
             price=str(entry_r),
             stopLoss=str(sl_r),
+            trailingStop=str(trail_r),
+            activePrice=str(active_r),
             positionIdx=0,
             timeInForce="GTC"
         )
@@ -1064,55 +1069,56 @@ def run_bot():
                         if pos:
                             entry_p    = setup['entry']
                             sl_p       = setup['sl']
-                            dist       = setup['dist']
                             side_order = "Buy" if stype == "Long" else "Sell"
                             actual_entry = float(pos.get('avgPrice', entry_p))
 
-                            # Recalc dist dari actual fill price agar SL tidak mepet
+                            # Recalc dist dari actual fill price
                             actual_dist = abs(actual_entry - sl_p)
                             min_dist    = actual_entry * 0.002
+                            sl_adjusted = False
                             if actual_dist < min_dist:
-                                # SL terlalu mepet ke actual fill → perlebar SL ke min_dist
                                 actual_dist = min_dist
                                 sl_p = actual_entry - actual_dist if side_order == "Buy" \
                                        else actual_entry + actual_dist
-                                print(f"⚠️ {coin}: Actual fill {actual_entry:.6f} vs OCL "
+                                sl_adjusted = True
+                                print(f"⚠️ {coin}: Fill {actual_entry:.6f} vs OCL "
                                       f"{entry_p:.6f} — SL diperlebar ke {sl_p:.6f}")
 
                             trail_d = TRAIL_STOP * actual_dist
-                            info    = get_instrument_info(coin)
-                            tick    = info.get('tick_size', 0.0001)
-                            sl_r    = round_price(sl_p, tick)
-                            trail_r = round_price(trail_d, tick)
-                            active_p = round_price(
-                                actual_entry + TRAIL_ACT_R * actual_dist if side_order == "Buy"
-                                else actual_entry - TRAIL_ACT_R * actual_dist, tick)
-                            trail_set_ok = False
-                            for _attempt in range(3):
-                                try:
-                                    params = dict(
-                                        category=CATEGORY, symbol=coin,
-                                        stopLoss=str(sl_r),
-                                        positionIdx=0
-                                    )
-                                    if trail_r > 0 and active_p > 0:
-                                        params['trailingStop'] = str(trail_r)
-                                        params['activePrice']  = str(active_p)
-                                    res_ts = session.set_trading_stop(**params)
-                                    if res_ts.get('retCode', -1) == 0:
-                                        trail_set_ok = True
-                                        print(f"🛡️  {coin}: SL={sl_r} Trail={trail_r} "
-                                              f"activePrice={active_p} (+{TRAIL_ACT_R}R) dipasang")
-                                        break
-                                    else:
-                                        print(f"⚠️ {coin}: set_trading_stop gagal (attempt {_attempt+1}): "
-                                              f"{res_ts.get('retMsg','')} (code:{res_ts.get('retCode')})")
+
+                            # Trail sudah dipasang saat place_limit_order.
+                            # Hanya update SL via set_trading_stop jika SL perlu disesuaikan.
+                            trail_set_ok = True  # anggap trail sudah aktif dari order
+                            if sl_adjusted:
+                                info = get_instrument_info(coin)
+                                tick = info.get('tick_size', 0.0001)
+                                sl_r = round_price(sl_p, tick)
+                                active_p = round_price(
+                                    actual_entry + TRAIL_ACT_R * actual_dist if side_order == "Buy"
+                                    else actual_entry - TRAIL_ACT_R * actual_dist, tick)
+                                trail_r = round_price(trail_d, tick)
+                                for _attempt in range(3):
+                                    try:
+                                        res_ts = session.set_trading_stop(
+                                            category=CATEGORY, symbol=coin,
+                                            stopLoss=str(sl_r),
+                                            trailingStop=str(trail_r),
+                                            activePrice=str(active_p),
+                                            positionIdx=0
+                                        )
+                                        if res_ts.get('retCode', -1) == 0:
+                                            print(f"🛡️  {coin}: SL adjusted={sl_r} Trail={trail_r} "
+                                                  f"activePrice={active_p} dipasang")
+                                            break
+                                        else:
+                                            print(f"⚠️ {coin}: set_trading_stop gagal (attempt {_attempt+1}): "
+                                                  f"{res_ts.get('retMsg','')} (code:{res_ts.get('retCode')})")
+                                            trail_set_ok = False
+                                            time.sleep(2)
+                                    except Exception as e:
+                                        print(f"⚠️ {coin}: set_trading_stop error: {e}")
+                                        trail_set_ok = False
                                         time.sleep(2)
-                                except Exception as e:
-                                    print(f"⚠️ {coin}: set_trading_stop error (attempt {_attempt+1}): {e}")
-                                    time.sleep(2)
-                            if not trail_set_ok:
-                                print(f"⚠️ {coin}: Trail gagal dipasang — akan retry di M5 berikutnya")
                             active_positions[coin] = {
                                 'side'          : side_order,
                                 'entry'         : actual_entry,
