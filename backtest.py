@@ -1938,7 +1938,7 @@ def backtest_concurrent(coins_data: dict,
                     'slot_skip' : False,
                     'rev_count' : rev_count,
                 })
-                if outcome == 'sl' and rev_count < 2:
+                if outcome in ('sl', 'tp') and rev_count < 2:
                     # Buka reverse trade — slot tetap aktif
                     rev_stype  = 'Short' if stype == 'Long' else 'Long'
                     rev_entry  = exit_p
