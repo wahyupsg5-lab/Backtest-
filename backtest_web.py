@@ -29,15 +29,17 @@ _ENTRY_R       = float(os.environ.get('ENTRY_R',       '9.5'))
 _TOUCH_VOL_MIN = float(os.environ.get('TOUCH_VOL_MIN', '0.8'))    # min vol ratio at SBR/OCL touch
 _MAX_GAP_PCT   = float(os.environ.get('MAX_GAP_PCT',   '0.006'))  # max gap_size/price — FVG ≤0.60% dari harga
 _TRAIL_STOP    = float(os.environ.get('TRAIL_STOP',    '1.0'))    # trail 1.0×dist
+_TRAIL_TIMEOUT = int(os.environ.get('TRAIL_TIMEOUT',   '864'))    # 3 hari = 72h × 12 candle/jam
 _MIN_DIST_PCT  = float(os.environ.get('MIN_DIST_PCT',  '0.002'))  # min SL distance = 0.2% dari price
-bt.ENTRY_MODE    = _ENTRY_MODE
-bt.SL_MULT       = _SL_MULT
-bt.TP_MULT       = _TP_MULT
-bt.ENTRY_R       = _ENTRY_R
-bt.TOUCH_VOL_MIN = _TOUCH_VOL_MIN
-bt.MAX_GAP_PCT   = _MAX_GAP_PCT
-bt.TRAIL_STOP    = _TRAIL_STOP
-bt.MIN_DIST_PCT  = _MIN_DIST_PCT
+bt.ENTRY_MODE      = _ENTRY_MODE
+bt.SL_MULT         = _SL_MULT
+bt.TP_MULT         = _TP_MULT
+bt.ENTRY_R         = _ENTRY_R
+bt.TOUCH_VOL_MIN   = _TOUCH_VOL_MIN
+bt.MAX_GAP_PCT     = _MAX_GAP_PCT
+bt.TRAIL_STOP      = _TRAIL_STOP
+bt.TRAIL_TIMEOUT_C = _TRAIL_TIMEOUT
+bt.MIN_DIST_PCT    = _MIN_DIST_PCT
 
 # ── Coin yang sudah lolos backtest fvg_sbr (disimpan, nanti digabung) ─────
 COINS_SAVED = [

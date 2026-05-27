@@ -31,6 +31,8 @@ ENTRY_R      = 8.0      # fvg_rev_limit: level limit entry dari titik 0 (dalam R
 TIME_FILTER  = 0        # max candles FVG→MSS (0 = disabled)
 TRAIL_STOP   = 0.50     # trailing SL step dalam R — sinkron dengan bott_v4.py
 TRAIL_ACT_R  = 2.0      # trail aktif setelah +TRAIL_ACT_R dari entry (Bybit min ≥ trailingStop)
+TRAIL_TIMEOUT_C = 864   # close posisi jika trail SL tidak bergerak selama N candle M5
+                        # 864 = 3 hari (72 jam × 12 candle/jam)
 TOUCH_VOL_MIN = 0.8     # fvg_strong: touch candle vol min (× avg 20 M5 candle; 0 = no filter)
 MAX_GAP_PCT   = 0.006   # fvg_strong: max gap_size / entry_p — sinkron dengan bott_v4.py
 APPROACH_R    = 2.0     # fvg_limit: place order saat harga dalam 2R dari entry
@@ -536,7 +538,7 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance,
     trail_engaged    = False  # trailing SL moved to BE or better
     trail_prev_sl    = trail_sl
     trail_no_move    = 0      # candle counter sejak trail_sl terakhir bergerak
-    TRAIL_TIMEOUT_C  = 1152   # 96 jam × 12 candle/jam
+    _TRAIL_TIMEOUT_C  = TRAIL_TIMEOUT_C  # dari konstanta module (default 3 hari)
     outcome          = 'timeout'
     exit_p           = float(future.iloc[-1]['close']) if len(future) else entry
     exit_ts          = future.iloc[-1]['ts'] if len(future) else None
@@ -584,7 +586,7 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance,
                 trail_prev_sl = trail_sl
             else:
                 trail_no_move += 1
-            if trail_no_move >= TRAIL_TIMEOUT_C:
+            if trail_no_move >= _TRAIL_TIMEOUT_C:
                 exit_p = float(c['close']); exit_ts = c['ts']; outcome = 'timeout'; break
 
     if stype == "Long":
@@ -1764,7 +1766,7 @@ def _bt_conc_update_trade(trade: dict, h: float, l: float, c: float,
     Update active trade untuk satu M5 candle.
     Returns (outcome, exit_p, exit_ts, pnl_usd) jika trade close, else None.
     """
-    TRAIL_TIMEOUT_C = 1152   # 96 jam × 12 candle/jam
+    _TRAIL_TIMEOUT_C = TRAIL_TIMEOUT_C  # dari konstanta module (default 3 hari)
 
     stype    = trade['stype']
     entry    = trade['entry']
@@ -1828,7 +1830,7 @@ def _bt_conc_update_trade(trade: dict, h: float, l: float, c: float,
             trade['trail_prev_sl'] = trade['trail_sl']
         else:
             trade['trail_no_move'] = trade.get('trail_no_move', 0) + 1
-        if trade['trail_no_move'] >= TRAIL_TIMEOUT_C:
+        if trade['trail_no_move'] >= _TRAIL_TIMEOUT_C:
             r = (c - entry) / dist if stype == 'Long' else (entry - c) / dist
             return 'timeout', c, ts, r * risk_usd - fee
 
