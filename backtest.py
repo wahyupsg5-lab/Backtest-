@@ -1944,7 +1944,7 @@ def backtest_concurrent(coins_data: dict,
                     rev_entry  = exit_p
                     rev_dist   = trade['dist']
                     rev_sl     = rev_entry + rev_dist if rev_stype == 'Short' else rev_entry - rev_dist
-                    rev_tp     = rev_entry - 1000 * rev_dist if rev_stype == 'Short' else rev_entry + 1000 * rev_dist
+                    rev_tp     = rev_entry - 3 * rev_dist if rev_stype == 'Short' else rev_entry + 3 * rev_dist
                     _rev_fee   = 2 * TAKER_FEE * rev_entry * (balance * RISK_PCT) / rev_dist if rev_dist > 0 else 0.0
                     state['trade'] = {
                         'entry'         : rev_entry,

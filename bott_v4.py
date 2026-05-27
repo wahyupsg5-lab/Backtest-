@@ -77,7 +77,7 @@ session = HTTP(testnet=TESTNET, api_key=API_KEY, api_secret=API_SECRET)
 # ── Strategy params (sinkron dengan backtest.py) ─────────────
 SL_MULT          = 6.2    # SL = SL_MULT × gap_size dari entry (fallback)
 TRAIL_STOP       = 1.0    # trailing distance = TRAIL_STOP × dist (sinkron backtest Trail=1.0R)
-TRAIL_ACT_R      = 2.0    # trail aktif setelah +TRAIL_ACT_R (Bybit min > trailingStop)
+TRAIL_ACT_R      = 1.5    # trail aktif setelah +TRAIL_ACT_R (Bybit min > trailingStop)
 TRAIL_TIMEOUT_DAYS = 3    # close posisi jika peak tidak bergerak selama N hari (sinkron backtest)
 SBR_MODE         = True   # True = SBR entry di C1.close + SL di C1.low, False = OCL entry lama
 ENTRY_MODE       = 'fvg_limit'  # 'fvg_sbr' (market saat touch) | 'fvg_limit' (limit langsung di BOS)
@@ -759,7 +759,7 @@ def check_trailing_sl(coin):
             return
 
         # Pasang trailing stop via set_trading_stop saat pertama posisi terdeteksi
-        # activePrice = entry + TRAIL_ACT_R×dist → trail aktif setelah +2R profit (sinkron backtest)
+        # activePrice = entry + TRAIL_ACT_R×dist → trail aktif setelah +1.5R profit (sinkron backtest)
         if TRAIL_STOP > 0 and dist > 0 and not p.get('trail_set', False):
             trail_dist = p.get('trail_dist', TRAIL_STOP * dist)
             info       = get_instrument_info(coin)
