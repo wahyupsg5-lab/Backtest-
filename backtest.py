@@ -30,7 +30,7 @@ TP_MULT      = 2.0      # TP distance dari titik 0 (dalam R unit)
 ENTRY_R      = 8.0      # fvg_rev_limit: level limit entry dari titik 0 (dalam R)
 TIME_FILTER  = 0        # max candles FVG→MSS (0 = disabled)
 TRAIL_STOP   = 0.50     # trailing SL step dalam R — sinkron dengan bott_v4.py
-TRAIL_ACT_R  = 2.0      # trail aktif setelah +TRAIL_ACT_R dari entry (Bybit min ≥ trailingStop)
+TRAIL_ACT_R  = 1.5      # trail aktif setelah +TRAIL_ACT_R dari entry (Bybit min ≥ trailingStop)
 TRAIL_TIMEOUT_C = 864   # close posisi jika trail SL tidak bergerak selama N candle M5
                         # 864 = 3 hari (72 jam × 12 candle/jam)
 TOUCH_VOL_MIN = 0.8     # fvg_strong: touch candle vol min (× avg 20 M5 candle; 0 = no filter)
