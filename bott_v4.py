@@ -75,16 +75,17 @@ if not API_KEY or not API_SECRET:
 session = HTTP(testnet=TESTNET, api_key=API_KEY, api_secret=API_SECRET)
 
 # ── Strategy params (sinkron dengan backtest.py) ─────────────
-SL_MULT       = 6.2     # SL = SL_MULT × gap_size dari entry (fallback)
-TRAIL_STOP    = 0.50    # trailing distance = TRAIL_STOP × dist
-TRAIL_ACT_R   = 2.0     # trail aktif setelah +TRAIL_ACT_R (Bybit min > trailingStop)
-SBR_MODE      = True    # True = SBR entry di C1.close + SL di C1.low, False = OCL entry lama
-ENTRY_MODE    = 'fvg_limit'  # 'fvg_sbr' (market saat touch) | 'fvg_limit' (limit langsung di BOS)
-TOUCH_VOL_MIN = 0.8     # touch candle volume min (× avg 20 M5 candle) — hanya dipakai fvg_sbr
-MAX_GAP_PCT   = 0.006   # max gap_size / entry_price (FVG ≤ 0.60%)
-MAX_CONCURRENT = 5      # maks order limit aktif + posisi bersamaan
-APPROACH_R     = 2.0    # place limit saat harga dalam 2R dari entry
-REQUIRE_BOS    = False  # True = BOS H1 dulu; False = FVG kuat langsung (FVG-only mode)
+SL_MULT          = 6.2    # SL = SL_MULT × gap_size dari entry (fallback)
+TRAIL_STOP       = 1.0    # trailing distance = TRAIL_STOP × dist (sinkron backtest Trail=1.0R)
+TRAIL_ACT_R      = 2.0    # trail aktif setelah +TRAIL_ACT_R (Bybit min > trailingStop)
+TRAIL_TIMEOUT_DAYS = 3    # close posisi jika peak tidak bergerak selama N hari (sinkron backtest)
+SBR_MODE         = True   # True = SBR entry di C1.close + SL di C1.low, False = OCL entry lama
+ENTRY_MODE       = 'fvg_limit'  # 'fvg_sbr' (market saat touch) | 'fvg_limit' (limit langsung di BOS)
+TOUCH_VOL_MIN    = 0.8    # touch candle volume min (× avg 20 M5 candle) — hanya dipakai fvg_sbr
+MAX_GAP_PCT      = 0.006  # max gap_size / entry_price (FVG ≤ 0.60%)
+MAX_CONCURRENT   = 5      # maks order limit aktif + posisi bersamaan
+APPROACH_R       = 2.0    # place limit saat harga dalam 2R dari entry
+REQUIRE_BOS      = False  # True = BOS H1 dulu; False = FVG kuat langsung (FVG-only mode)
 
 SYMBOLS = [
     # 17 coin aktif — sinkron dengan backtest fvg_limit Jan2025–Apr2026
@@ -450,6 +451,34 @@ def place_market_order(symbol, side, entry, sl, trail_dist):
         return None
 
 
+def close_position(symbol, side, qty_str):
+    """
+    Force-close posisi dengan market order reduceOnly.
+    Dipakai untuk trail timeout: tutup posisi yang peak-nya stuck 3 hari.
+    """
+    try:
+        close_side = 'Sell' if side == 'Buy' else 'Buy'
+        info  = get_instrument_info(symbol)
+        qty_r = round_qty(float(qty_str), info['qty_step'])
+        if qty_r <= 0:
+            print(f"⚠️ {symbol}: close_position qty=0, skip.")
+            return False
+        res = session.place_order(
+            category=CATEGORY, symbol=symbol,
+            side=close_side, orderType="Market",
+            qty=str(qty_r), reduceOnly=True,
+            positionIdx=0, timeInForce="IOC"
+        )
+        if res.get('retCode') == 0:
+            print(f"⏹️  {symbol}: Posisi ditutup (trail timeout) @ market")
+            return True
+        print(f"⚠️ {symbol}: close_position gagal → {res.get('retMsg','')} (code:{res.get('retCode')})")
+        return False
+    except Exception as e:
+        print(f"⚠️ {symbol}: close_position error → {e}")
+        return False
+
+
 def place_limit_order(symbol, side, entry_p, sl_p):
     """
     Limit order GTC di entry_p, SL + trailing stop langsung dalam satu order.
@@ -661,6 +690,8 @@ def check_trailing_sl(coin):
                         'trail_set'     : False,
                         'last_price'    : rev_entry,
                         'entry_time'    : time.time(),
+                        'peak'          : rev_entry,
+                        'peak_time'     : time.time(),
                         'swing_val'     : p.get('swing_val'),
                         'bos_type'      : rev_stype,
                         'rev_count'     : rev_count + 1,
@@ -693,7 +724,7 @@ def check_trailing_sl(coin):
             del active_positions[coin]
         return
 
-    # Posisi masih buka — update last_price dan cek trail_engaged
+    # Posisi masih buka — update last_price, peak, dan cek trail timeout
     try:
         curr_price = float(pos['markPrice'])
         active_positions[coin]['last_price'] = curr_price
@@ -701,6 +732,31 @@ def check_trailing_sl(coin):
         entry = p['entry']
         dist  = p.get('dist', 0)
         side  = p['side']
+
+        # Track peak (favorable extreme) dan waktu terakhir peak bergerak
+        peak      = p.get('peak', entry)
+        peak_time = p.get('peak_time', p.get('entry_time', time.time()))
+        new_peak  = max(peak, curr_price) if side == 'Buy' else min(peak, curr_price)
+        if new_peak != peak:
+            active_positions[coin]['peak']      = new_peak
+            active_positions[coin]['peak_time'] = time.time()
+            peak_time = time.time()
+
+        # Trail timeout: close jika peak tidak bergerak selama TRAIL_TIMEOUT_DAYS hari
+        timeout_sec = TRAIL_TIMEOUT_DAYS * 24 * 3600
+        if time.time() - peak_time > timeout_sec:
+            qty_pos = pos.get('size', '0')
+            hours_stuck = (time.time() - peak_time) / 3600
+            print(f"⏰ {coin}: Trail timeout {TRAIL_TIMEOUT_DAYS} hari "
+                  f"(peak stuck {hours_stuck:.1f}h) — force close @ market")
+            if close_position(coin, side, qty_pos):
+                done_setups[coin] = {
+                    'swing_val': p.get('swing_val'),
+                    'stype'    : p.get('bos_type'),
+                    'used_ocl' : p.get('orig_ocl', entry),
+                }
+                del active_positions[coin]
+            return
 
         # Pasang trailing stop via set_trading_stop saat pertama posisi terdeteksi
         # activePrice = entry + TRAIL_ACT_R×dist → trail aktif setelah +2R profit (sinkron backtest)
@@ -1119,6 +1175,8 @@ def run_bot():
                                 'trail_set'     : trail_set_ok,  # False = retry by check_trailing_sl
                                 'last_price'    : actual_entry,
                                 'entry_time'    : time.time(),
+                                'peak'          : actual_entry,
+                                'peak_time'     : time.time(),
                                 'swing_val'     : setup.get('swing_val'),
                                 'bos_type'      : stype,
                                 'rev_count'     : 0,
