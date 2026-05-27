@@ -88,16 +88,17 @@ APPROACH_R       = 2.0    # place limit saat harga dalam 2R dari entry
 REQUIRE_BOS      = False  # True = BOS H1 dulu; False = FVG kuat langsung (FVG-only mode)
 
 SYMBOLS = [
-    # 17 coin aktif — sinkron dengan backtest fvg_limit Jan2025–Apr2026
+    # 12 coin aktif — sinkron dengan backtest fvg_limit Jan2025–Apr2026
     # Hapus: BELUSDT (margin boros), VIRTUALUSDT, ENAUSDT, OPUSDT, ALGOUSDT,
-    #        FARTCOINUSDT, GALAUSDT, IMXUSDT, AXSUSDT, DYDXUSDT (< 15 trade / WR rendah)
+    #        FARTCOINUSDT, GALAUSDT, IMXUSDT, AXSUSDT, DYDXUSDT (< 15 trade / WR rendah),
+    #        AAVEUSDT, XRPUSDT, XAUTUSDT, 1000PEPEUSDT, GMXUSDT
     # Batch 1
-    'XVGUSDT', '1000BONKUSDT', 'BERAUSDT', '1000PEPEUSDT',
+    'XVGUSDT', '1000BONKUSDT', 'BERAUSDT',
     'ONDOUSDT', 'SHIB1000USDT', 'JUPUSDT',
-    'ORCAUSDT', 'XRPUSDT', 'XAUTUSDT', 'TAOUSDT',
+    'ORCAUSDT', 'TAOUSDT',
     # Batch 2
-    'SUIUSDT', 'AAVEUSDT',
-    'GMXUSDT', 'SANDUSDT',
+    'SUIUSDT',
+    'SANDUSDT',
     'LTCUSDT', 'ICPUSDT',
 ]
 
@@ -116,7 +117,6 @@ ATR_THRESHOLD = {
     'TAOUSDT'       : 0.0031,   # P25=0.313%
     'SUIUSDT'       : 0.0026,   # P25=0.263%
     'AAVEUSDT'      : 0.0026,   # P25=0.259%
-    'GMXUSDT'       : 0.0020,   # P25=0.203%
     'SANDUSDT'      : 0.0022,   # P25=0.220%
     'LTCUSDT'       : 0.0018,   # P25=0.178%
     'ICPUSDT'       : 0.0023,   # P25=0.231%

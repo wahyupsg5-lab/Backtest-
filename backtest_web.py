@@ -54,11 +54,12 @@ COINS_SAVED = [
     'LTCUSDT', 'DYDXUSDT', 'FLOWUSDT', 'ICPUSDT',
 ]
 
-# 13 coin: hapus SOLUSDT, SEIUSDT, TIAUSDT, HBARUSDT (WR rendah / PnL negatif),
+# 12 coin: hapus SOLUSDT, SEIUSDT, TIAUSDT, HBARUSDT (WR rendah / PnL negatif),
 #          BELUSDT (margin boros), VIRTUALUSDT, FARTCOINUSDT, IMXUSDT,
 #          ENAUSDT, OPUSDT, ALGOUSDT, GALAUSDT, AXSUSDT, DYDXUSDT (< 15 trade),
 #          AAVEUSDT (WR 28% di trail 1R, PnL negatif),
-#          XRPUSDT, XAUTUSDT, 1000PEPEUSDT
+#          XRPUSDT, XAUTUSDT, 1000PEPEUSDT,
+#          GMXUSDT
 COINS = [
     # Batch 1
     'XVGUSDT', '1000BONKUSDT', 'BERAUSDT',
@@ -66,7 +67,7 @@ COINS = [
     'ORCAUSDT', 'TAOUSDT',
     # Batch 2
     'SUIUSDT',
-    'GMXUSDT', 'SANDUSDT',
+    'SANDUSDT',
     'LTCUSDT', 'ICPUSDT',
 ]
 
