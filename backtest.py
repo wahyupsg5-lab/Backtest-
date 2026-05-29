@@ -1852,12 +1852,40 @@ def backtest_concurrent(coins_data: dict,
                     'dist'      : trade['dist'],
                     'slot_skip' : False,
                 })
-                active_slots.discard(sym)
-                state['done_bos'] = {
-                    'bos_key' : trade.get('done_key'),
-                    'used_ocl': trade.get('orig_ocl', trade['entry']),
-                }
-                state['trade'] = None
+                rev_count = trade.get('rev_count', 0)
+                if outcome == 'sl' and rev_count < 1:
+                    # Buka reverse trade 1× — slot tetap aktif
+                    rev_stype  = 'Short' if stype == 'Long' else 'Long'
+                    rev_entry  = exit_p
+                    rev_dist   = trade['dist']
+                    rev_sl     = rev_entry + rev_dist if rev_stype == 'Short' else rev_entry - rev_dist
+                    rev_tp     = rev_entry - 1000 * rev_dist if rev_stype == 'Short' else rev_entry + 1000 * rev_dist
+                    _rev_fee   = 2 * TAKER_FEE * rev_entry * (balance * RISK_PCT) / rev_dist if rev_dist > 0 else 0.0
+                    state['trade'] = {
+                        'entry'         : rev_entry,
+                        'sl_orig'       : rev_sl,
+                        'trail_sl'      : rev_sl,
+                        'peak'          : rev_entry,
+                        'tp'            : rev_tp,
+                        'dist'          : rev_dist,
+                        'd_trail'       : rev_dist,
+                        'stype'         : rev_stype,
+                        'entry_ts'      : ts,
+                        'done_key'      : trade.get('done_key'),
+                        'trail_no_move' : 0,
+                        'trail_prev_sl' : rev_sl,
+                        'rev_count'     : rev_count + 1,
+                        'orig_ocl'      : trade.get('orig_ocl', trade['entry']),
+                        'fee_usd'       : _rev_fee,
+                    }
+                    # Slot tetap aktif
+                else:
+                    active_slots.discard(sym)
+                    state['done_bos'] = {
+                        'bos_key' : trade.get('done_key'),
+                        'used_ocl': trade.get('orig_ocl', trade['entry']),
+                    }
+                    state['trade'] = None
 
         # ── 2. Pending setup handling ─────────────────────────────────────
         elif state['pending'] is not None:
