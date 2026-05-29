@@ -1068,18 +1068,17 @@ def backtest_coin(symbol, df_m5_full, initial_balance, _fvg_events=None):
             if gap_size <= 0 or c1_close <= 0:
                 c_dir_fail += 1; i += 12; continue
 
-            # Entry di OCL (c1_close), SL di c1_mid
-            c1_mid_v = (c1_high + c1_low) / 2
+            # Entry di OCL (c1_close), SL di c1_low/c1_high (ujung 100% c1)
             if stype == "Long":
                 entry_limit = c1_close
-                d           = max(c1_close - c1_mid_v, 0.0)
-                sl_nat      = c1_close - d
+                d           = max(c1_close - c1_low, 0.0)
+                sl_nat      = c1_low
                 if d <= 0: c_dir_fail += 1; i += 12; continue
                 d_trail     = d
             else:
                 entry_limit = c1_close
-                d           = max(c1_mid_v - c1_close, 0.0)
-                sl_nat      = c1_close + d
+                d           = max(c1_high - c1_close, 0.0)
+                sl_nat      = c1_high
                 if d <= 0: c_dir_fail += 1; i += 12; continue
                 d_trail     = d
 
@@ -1632,14 +1631,14 @@ def _bt_conc_detect_bos(state: dict, active_slots: set,
     c1_l = float(chosen['c1_low'])
     c1_h = float(chosen['c1_high'])
 
-    # SL di c1_mid
-    c1_mid_v = (c1_h + c1_l) / 2
+    # SL di c1_low (Long) / c1_high (Short) — ujung 100% c1
     if stype == 'Long':
-        dist = max(c1_c - c1_mid_v, 0.0)
+        dist = max(c1_c - c1_l, 0.0)
+        sl_pending = c1_l
     else:
-        dist = max(c1_mid_v - c1_c, 0.0)
+        dist = max(c1_h - c1_c, 0.0)
+        sl_pending = c1_h
     d_trail    = dist
-    sl_pending = c1_c - dist if stype == 'Long' else c1_c + dist
 
     if dist < c1_c * MIN_DIST_PCT:
         return
