@@ -77,7 +77,7 @@ session = HTTP(testnet=TESTNET, api_key=API_KEY, api_secret=API_SECRET)
 # ── Strategy params (sinkron dengan backtest.py) ─────────────
 SL_MULT          = 6.2    # SL = SL_MULT × gap_size dari entry (fallback)
 TRAIL_STOP       = 0.5    # trailing distance = TRAIL_STOP × dist (sinkron backtest Trail=0.5R)
-TRAIL_ACT_R      = 1.5    # trail aktif setelah +TRAIL_ACT_R (Bybit min > trailingStop)
+TRAIL_ACT_R      = 2.5    # trail aktif setelah +TRAIL_ACT_R (Bybit min > trailingStop)
 TRAIL_TIMEOUT_DAYS = 3    # close posisi jika peak tidak bergerak selama N hari (sinkron backtest)
 SBR_MODE         = True   # True = SBR entry di C1.close + SL di C1.low, False = OCL entry lama
 ENTRY_MODE       = 'fvg_limit'  # 'fvg_sbr' (market saat touch) | 'fvg_limit' (limit langsung di BOS)
@@ -88,38 +88,30 @@ APPROACH_R       = 2.0    # place limit saat harga dalam 2R dari entry
 REQUIRE_BOS      = False  # True = BOS H1 dulu; False = FVG kuat langsung (FVG-only mode)
 
 SYMBOLS = [
-    # 12 coin aktif — sinkron dengan backtest fvg_limit Jan2025–Apr2026
-    # Hapus: BELUSDT (margin boros), VIRTUALUSDT, ENAUSDT, OPUSDT, ALGOUSDT,
-    #        FARTCOINUSDT, GALAUSDT, IMXUSDT, AXSUSDT, DYDXUSDT (< 15 trade / WR rendah),
-    #        AAVEUSDT, XRPUSDT, XAUTUSDT, 1000PEPEUSDT, GMXUSDT
-    # Batch 1
-    'XVGUSDT', '1000BONKUSDT', 'BERAUSDT',
-    'ONDOUSDT', 'SHIB1000USDT', 'JUPUSDT',
-    'ORCAUSDT', 'TAOUSDT',
-    # Batch 2
-    'SUIUSDT',
-    'SANDUSDT',
-    'LTCUSDT', 'ICPUSDT',
+    # 14 coin aktif — sinkron dengan backtest fvg_limit Jan2025–Apr2026
+    '1000BONKUSDT', 'BERAUSDT', 'SHIB1000USDT', 'JUPUSDT',
+    'ORCAUSDT', 'XRPUSDT', 'TAOUSDT',
+    'SOLUSDT', 'AAVEUSDT',
+    'GMXUSDT', 'LTCUSDT', 'ICPUSDT',
+    'BELUSDT', 'VIRTUALUSDT',
 ]
 
 ATR_THRESHOLD = {
     # ATR P25 dari backtest fvg_limit Jan2025–Apr2026
-    'XVGUSDT'       : 0.0028,   # P25=0.283%
     '1000BONKUSDT'  : 0.0031,   # P25=0.308%
     'BERAUSDT'      : 0.0031,   # P25=0.305%
-    '1000PEPEUSDT'  : 0.0029,   # P25=0.292%
-    'ONDOUSDT'      : 0.0025,   # P25=0.254%
     'SHIB1000USDT'  : 0.0019,   # P25=0.188%
     'JUPUSDT'       : 0.0028,   # P25=0.278%
     'ORCAUSDT'      : 0.0021,   # P25=0.214%
     'XRPUSDT'       : 0.0018,   # P25=0.185%
-    'XAUTUSDT'      : 0.0003,   # P25=0.027%
     'TAOUSDT'       : 0.0031,   # P25=0.313%
-    'SUIUSDT'       : 0.0026,   # P25=0.263%
+    'SOLUSDT'       : 0.0022,   # P25=0.217%
     'AAVEUSDT'      : 0.0026,   # P25=0.259%
-    'SANDUSDT'      : 0.0022,   # P25=0.220%
+    'GMXUSDT'       : 0.0020,   # P25=0.203%
     'LTCUSDT'       : 0.0018,   # P25=0.178%
     'ICPUSDT'       : 0.0023,   # P25=0.231%
+    'BELUSDT'       : 0.0021,   # P25=0.214%
+    'VIRTUALUSDT'   : 0.0036,   # P25=0.363%
 }
 
 pending          = {}
@@ -667,7 +659,7 @@ def check_trailing_sl(coin):
             (side == 'Sell' and actual_exit >= entry)
         ))
 
-        if is_sl and rev_count < 2:
+        if is_sl and rev_count < 1:
             rev_side  = 'Sell' if side == 'Buy' else 'Buy'
             rev_stype = 'Short' if side == 'Buy' else 'Long'
             rev_dist  = p.get('dist', 0)
@@ -1007,13 +999,12 @@ def run_bot():
                                     c1_c = new_ocl
                                     c1_l = float(new_ch.get('c1_low', 0))
                                     c1_h = float(new_ch.get('c1_high', 0))
-                                    c1_mid_n = (c1_h + c1_l) / 2
                                     if new_st == 'Long':
-                                        dist_n = max(c1_c - c1_mid_n, 0.0)
-                                        entry_n = c1_c; sl_n = c1_c - dist_n
+                                        dist_n = max(c1_c - c1_l, 0.0)
+                                        entry_n = c1_c; sl_n = c1_l
                                     else:
-                                        dist_n = max(c1_mid_n - c1_c, 0.0)
-                                        entry_n = c1_c; sl_n = c1_c + dist_n
+                                        dist_n = max(c1_h - c1_c, 0.0)
+                                        entry_n = c1_c; sl_n = c1_h
                                     if dist_n >= c1_c * 0.002:
                                         pending[coin] = {
                                             'type': new_st, 'phase': 'WAIT_APPROACH',
@@ -1393,13 +1384,12 @@ def run_bot():
                     c1_c = float(chosen_fvg['c1_close'])
                     c1_l = float(chosen_fvg['c1_low'])
                     c1_h = float(chosen_fvg['c1_high'])
-                    c1_mid = (c1_h + c1_l) / 2
                     if stype == 'Long':
-                        dist = max(c1_c - c1_mid, 0.0)
-                        entry_adj = c1_c; sl_entry = c1_c - dist
+                        dist = max(c1_c - c1_l, 0.0)
+                        entry_adj = c1_c; sl_entry = c1_l
                     else:
-                        dist = max(c1_mid - c1_c, 0.0)
-                        entry_adj = c1_c; sl_entry = c1_c + dist
+                        dist = max(c1_h - c1_c, 0.0)
+                        entry_adj = c1_c; sl_entry = c1_h
                     if dist < c1_c * 0.002:
                         print(f"   {coin}: FVG dist terlalu kecil ({dist/c1_c*100:.3f}%)")
                         continue
@@ -1498,16 +1488,15 @@ def run_bot():
                     c1_h   = float(chosen_fvg['c1_high'])
                     gap_s  = float(chosen_fvg['top']) - float(chosen_fvg['bottom'])
 
-                    # Entry di OCL (c1_close), SL di c1_mid
-                    c1_mid_bos = (c1_h + c1_l) / 2
+                    # Entry di OCL (c1_close), SL di c1_low/c1_high (ujung 100% c1)
                     if stype == 'Long':
                         entry_adj = c1_c
-                        dist      = max(c1_c - c1_mid_bos, 0.0)
-                        sl_entry  = c1_c - dist
+                        dist      = max(c1_c - c1_l, 0.0)
+                        sl_entry  = c1_l
                     else:
                         entry_adj = c1_c
-                        dist      = max(c1_mid_bos - c1_c, 0.0)
-                        sl_entry  = c1_c + dist
+                        dist      = max(c1_h - c1_c, 0.0)
+                        sl_entry  = c1_h
 
                     if dist < c1_c * 0.002:
                         continue  # SL terlalu dekat entry
@@ -1533,7 +1522,7 @@ def run_bot():
 
                     choch_str = f"{choch_eff:.6g}" if choch_eff else "—"
                     print(f"\n📊 {coin} | BOS {stype_eff} | OCL:{c1_c:.6f} "
-                          f"Entry:{entry_adj:.6f} SL(76%):{sl_entry:.6f} "
+                          f"Entry:{entry_adj:.6f} SL(100%):{sl_entry:.6f} "
                           f"dist:{dist/c1_c*100:.3f}% | GapPct:{gap_s/c1_c*100:.3f}% | CHOCH:{choch_str}")
 
                     # Simpan sebagai WAIT_APPROACH — order belum dipasang, belum pakai margin
