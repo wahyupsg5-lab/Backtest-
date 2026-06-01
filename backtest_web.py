@@ -565,8 +565,15 @@ def _run():
                     aw = sum(s['win_rr'])  / len(s['win_rr'])  if s['win_rr']  else 0.0
                     al = sum(s['loss_rr']) / len(s['loss_rr']) if s['loss_rr'] else 0.0
                     rr_str = f"Win:{aw:.2f}R Loss:{al:.2f}R"
+                    sym_tr = [t for t in concurrent_trades if t['symbol'] == sym]
+                    dp = sorted([t['dist']/t['entry']*100 for t in sym_tr
+                                 if t.get('dist',0)>0 and t.get('entry',0)>0])
+                    avg_dp = sum(dp)/len(dp) if dp else 0.0
+                    p10 = dp[int(len(dp)*0.1)] if dp else 0.0
+                    p90 = dp[int(len(dp)*0.9)] if dp else 0.0
                     _log_msg(f"  {sym:<20} {s['n']:>4} trade | WR:{wr_c:.0f}% | "
-                             f"PnL:${s['pnl']:.2f} | {rr_str}")
+                             f"PnL:${s['pnl']:.2f} | {rr_str} | "
+                             f"Dist avg:{avg_dp:.3f}% P10:{p10:.3f}% P90:{p90:.3f}%")
 
             # ── Per-bulan breakdown ───────────────────────────────────────
             import calendar
@@ -601,9 +608,43 @@ def _run():
                          f"PnL:${m['pnl']:.2f} | AvgWin:{aw_m:.2f}R | "
                          f"Setup:{setup} SlotOK:{slot_ok} Blok:{slot_blocked} CHOCH:{choch}")
 
+        # ── Isi _results per-coin untuk HTML table ──────────────────
+        results_conc = []
+        for sym in COINS:
+            s = coin_stats.get(sym, {})
+            sym_tr = [t for t in concurrent_trades if t['symbol'] == sym]
+            n_tr   = s.get('n', 0)
+            n_win  = s.get('w', 0)
+            n_loss = n_tr - n_win
+            wr_s   = n_win / n_tr * 100 if n_tr else 0.0
+            pnl_s  = s.get('pnl', 0.0)
+            win_pnl  = sum(t['pnl_usd'] for t in sym_tr if t['outcome'] == 'tp')
+            loss_pnl = abs(sum(t['pnl_usd'] for t in sym_tr if t['outcome'] != 'tp'))
+            pf_s   = win_pnl / loss_pnl if loss_pnl > 0 else 0.0
+            aw_s   = sum(s['win_rr'])/len(s['win_rr']) if s.get('win_rr') else 0.0
+            dp     = [t['dist']/t['entry']*100 for t in sym_tr
+                      if t.get('dist',0)>0 and t.get('entry',0)>0]
+            avg_dp = sum(dp)/len(dp) if dp else 0.0
+            p25_s  = calc_p25_atr(coins_data[sym]) if sym in coins_data else bt.ATR_THRESHOLD.get(sym, 0.0)
+            results_conc.append({
+                'symbol': sym, 'status': 'ok' if n_tr > 0 else 'no_data',
+                'trades': n_tr, 'win': n_win, 'loss': n_loss,
+                'wr': wr_s, 'pnl': pnl_s, 'roi': pnl_s / INITIAL_BALANCE * 100,
+                'max_dd': 0.0, 'pf': pf_s,
+                'final_bal': concurrent_final,
+                'longs':  len([t for t in sym_tr if t.get('type') == 'Long']),
+                'shorts': len([t for t in sym_tr if t.get('type') == 'Short']),
+                'p25_atr': p25_s,
+                'sl_then_tp': 0, 'sl_choch': 0,
+                'avg_rr':      round(aw_s, 2),
+                'avg_dist_pct': round(avg_dp, 3),
+                'compound_pnl': pnl_s,
+                'win_loss': {'win': [], 'loss': []},
+            })
+
         with _lock:
             _phase = 'done'
-            _results = []
+            _results = results_conc
             _compound_final_bal = concurrent_final
             _all_trades = concurrent_trades
         return
