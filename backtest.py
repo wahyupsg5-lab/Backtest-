@@ -42,24 +42,25 @@ MAX_CONCURRENT = 5      # maks posisi/limit aktif bersamaan lintas semua coin
 # ── Fixed SL distance (pip mode) ────────────────────────────────────────────
 # True  = dist pakai nilai fixed per coin di bawah (rata-rata C1 range historis)
 # False = dist pakai C1 range FVG aktual (perilaku lama)
-USE_FIXED_DIST = False
+USE_FIXED_DIST = True
 
-# Rata-rata dist C1 (c1_close - c1_low/high) dari backtest Jan2025–Apr2026.
-# Dipakai sebagai fixed SL distance per coin (dalam satuan harga, bukan %).
+# Fixed SL distance per coin — dihitung dari sweet-spot bucket WR tertinggi.
+# Rumus: avg_dist_price × (sweet_spot_pct / avg_dist_pct)
+# Sweet spot dipilih dari bucket dist% dengan WR terbaik (N>=10) di backtest Jan2025-Apr2026.
 FIXED_DIST_PER_COIN: dict = {
-    '1000BONKUSDT' : 0.000210,
-    'AAVEUSDT'     : 2.284569,
-    'BERAUSDT'     : 0.047505,
-    'GMXUSDT'      : 0.152497,
-    'ICPUSDT'      : 0.053991,
-    'JUPUSDT'      : 0.005525,
-    'LTCUSDT'      : 0.757429,
-    'ORCAUSDT'     : 0.024775,
-    'SHIB1000USDT' : 0.000098,
-    'SOLUSDT'      : 1.435454,
-    'TAOUSDT'      : 4.415704,
-    'VIRTUALUSDT'  : 0.020281,
-    'XRPUSDT'      : 0.017680,
+    '1000BONKUSDT' : 0.000107,  # sweet 0.5%  WR=48% N=159 — bucket 0.4-0.6%
+    'AAVEUSDT'     : 1.881164,  # sweet 0.9%  WR=46% N=151 — bucket 0.8-1%
+    'BERAUSDT'     : 0.028446,  # sweet 0.9%  WR=50% N=198 — bucket 0.8-1%
+    'GMXUSDT'      : 0.193918,  # sweet 1.25% WR=47% N=270 — bucket 1-1.5%
+    'ICPUSDT'      : 0.044336,  # sweet 0.9%  WR=50% N=111 — bucket 0.8-1%
+    'JUPUSDT'      : 0.004976,  # sweet 1.25% WR=47% N=127 — bucket 1-1.5%
+    'LTCUSDT'      : 0.630607,  # sweet 0.9%  WR=49% N=123 — bucket 0.8-1%
+    'ORCAUSDT'     : 0.024665,  # sweet 0.9%  WR=51% N=196 — bucket 0.8-1%
+    'SHIB1000USDT' : 0.000162,  # sweet 1.75% WR=49% N=121 — bucket 1.5-2%
+    'SOLUSDT'      : 1.409519,  # sweet 1.25% WR=50% N=117 — bucket 1-1.5%
+    'TAOUSDT'      : 4.022402,  # sweet 0.9%  WR=65% N=63  — bucket 0.8-1% ★
+    'VIRTUALUSDT'  : 0.012080,  # sweet 0.9%  WR=48% N=82  — bucket 0.8-1%
+    'XRPUSDT'      : 0.018595,  # sweet 0.65% WR=46% N=113 — bucket 0.6-0.8%
 }
 
 
