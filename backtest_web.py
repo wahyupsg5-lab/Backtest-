@@ -744,6 +744,12 @@ def _run():
             _results = results_conc
             _compound_final_bal = concurrent_final
             _all_trades = concurrent_trades
+
+        # ── Dist bucket analysis (setelah lock, sebelum return) ──────────
+        _dist_analysis = _dist_bucket_analysis(concurrent_trades)
+        if _dist_analysis:
+            _log_msg(_dist_analysis)
+        _log_msg("✅ SELESAI — Buka /readme untuk export README.md")
         return
 
     for symbol in COINS:
