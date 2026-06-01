@@ -49,7 +49,6 @@ USE_FIXED_DIST = True
 FIXED_DIST_PER_COIN: dict = {
     '1000BONKUSDT' : 0.000210,
     'AAVEUSDT'     : 2.284569,
-    'BELUSDT'      : 0.004771,
     'BERAUSDT'     : 0.047505,
     'GMXUSDT'      : 0.152497,
     'ICPUSDT'      : 0.053991,
@@ -57,7 +56,6 @@ FIXED_DIST_PER_COIN: dict = {
     'LTCUSDT'      : 0.757429,
     'ORCAUSDT'     : 0.024775,
     'SHIB1000USDT' : 0.000098,
-    'SOLUSDT'      : 1.435454,
     'TAOUSDT'      : 4.415704,
     'VIRTUALUSDT'  : 0.020281,
     'XRPUSDT'      : 0.017680,
@@ -2013,7 +2011,12 @@ def backtest_concurrent(coins_data: dict,
                 thr = APPROACH_R * dist
                 if (stype == 'Long'  and l_p <= entry + thr) or \
                    (stype == 'Short' and h_p >= entry - thr):
-                    if len(active_slots) < max_concurrent:
+                    # Cek minimum order value $5 (sinkron dengan Bybit ErrCode 110094)
+                    _order_val = (balance * RISK_PCT / dist * entry) if dist > 0 else 0.0
+                    if _order_val < 5.0:
+                        state['pending'] = None
+                        active_slots.discard(sym)
+                    elif len(active_slots) < max_concurrent:
                         pending['phase'] = 'WAIT_FILL'
                         active_slots.add(sym)
                         if not pending.get('_slot_ok_counted'):
