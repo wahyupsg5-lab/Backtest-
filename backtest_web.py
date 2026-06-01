@@ -42,7 +42,7 @@ bt.TRAIL_STOP      = _TRAIL_STOP
 bt.TRAIL_ACT_R     = _TRAIL_ACT_R
 bt.TRAIL_TIMEOUT_C = _TRAIL_TIMEOUT
 bt.MIN_DIST_PCT    = _MIN_DIST_PCT
-bt.FIXED_DIST_PER_COIN = {}  # reset tiap run supaya compute ulang dari data baru
+# bt.FIXED_DIST_PER_COIN tidak di-reset — pakai nilai hardcode di backtest.py
 
 # ── Coin yang sudah lolos backtest fvg_sbr (disimpan, nanti digabung) ─────
 COINS_SAVED = [
@@ -483,7 +483,8 @@ def _run():
 
     _log_msg("=" * 62)
     _trail_str = f" Trail={_TRAIL_STOP}R+Reverse" if _TRAIL_STOP > 0 else f" TP={_TP_MULT}R"
-    _log_msg(f"BACKTEST {len(COINS)} COIN — {_ENTRY_MODE.upper()} SL={_SL_MULT}R{_trail_str} TouchVol≥{_TOUCH_VOL_MIN}× MaxGap≤{_MAX_GAP_PCT*100:.2f}% CoinFilter:ON | Jan 2025–Apr 2026 | Modal ${INITIAL_BALANCE:.0f} | Risk 1%")
+    _pip_str   = " FixedPip:ON" if bt.USE_FIXED_DIST else ""
+    _log_msg(f"BACKTEST {len(COINS)} COIN — {_ENTRY_MODE.upper()} SL={_SL_MULT}R{_trail_str} TouchVol≥{_TOUCH_VOL_MIN}× MaxGap≤{_MAX_GAP_PCT*100:.2f}% CoinFilter:ON{_pip_str} | Jan 2025–Apr 2026 | Modal ${INITIAL_BALANCE:.0f} | Risk 1%")
     _log_msg(f"{len(COINS)} Coins: {', '.join(COINS)}")
     _log_msg("=" * 62)
 
@@ -509,12 +510,17 @@ def _run():
                 _log_msg(f"   ❌ {symbol}: {e}")
 
         bt.REQUIRE_BOS = False  # FVG-only mode: tidak perlu BOS H1
-        _log_msg(f"\n🔄 Concurrent backtest (FVG-only): {len(coins_data)} coin, max {bt.MAX_CONCURRENT} slot...")
+        _pip_tag = " | SL=FixedPip" if bt.USE_FIXED_DIST else ""
+        _log_msg(f"\n🔄 Concurrent backtest (FVG-only): {len(coins_data)} coin, max {bt.MAX_CONCURRENT} slot{_pip_tag}...")
         concurrent_trades, concurrent_final, monthly_diag_bt = bt.backtest_concurrent(
             coins_data, initial_balance=INITIAL_BALANCE, max_concurrent=bt.MAX_CONCURRENT)
 
-        # Selalu log avg dist per coin (untuk referensi kalibrasi fixed pip)
-        if bt.FIXED_DIST_PER_COIN:
+        # Log fixed dist yang dipakai (kalau mode aktif)
+        if bt.USE_FIXED_DIST and bt.FIXED_DIST_PER_COIN:
+            _log_msg("📐 Fixed dist per coin (hardcode dari avg C1 historis):")
+            for _s, _v in sorted(bt.FIXED_DIST_PER_COIN.items()):
+                _log_msg(f"   {_s:20s} = {_v:.6f}")
+        elif bt.FIXED_DIST_PER_COIN:
             _log_msg("📐 Avg dist C1 per coin (referensi fixed pip):")
             for _s, _v in sorted(bt.FIXED_DIST_PER_COIN.items()):
                 _log_msg(f"   {_s:20s} avg_dist = {_v:.6f}")
