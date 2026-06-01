@@ -111,23 +111,25 @@ ATR_THRESHOLD = {
     'VIRTUALUSDT'   : 0.0036,   # P25=0.363%
 }
 
-# ── Fixed SL distance per coin (avg C1 range dari backtest Jan2025–Apr2026) ──
-# dist = nilai harga fixed, bukan % — menggantikan c1_close - c1_low/high
-FIXED_DIST_PER_COIN = {
-    '1000BONKUSDT' : 0.000107,  # sweet 0.5%  WR=48% N=159 — bucket 0.4-0.6%
-    'AAVEUSDT'     : 1.881164,  # sweet 0.9%  WR=46% N=151 — bucket 0.8-1%
-    'BERAUSDT'     : 0.028446,  # sweet 0.9%  WR=50% N=198 — bucket 0.8-1%
-    'GMXUSDT'      : 0.193918,  # sweet 1.25% WR=47% N=270 — bucket 1-1.5%
-    'ICPUSDT'      : 0.044336,  # sweet 0.9%  WR=50% N=111 — bucket 0.8-1%
-    'JUPUSDT'      : 0.004976,  # sweet 1.25% WR=47% N=127 — bucket 1-1.5%
-    'LTCUSDT'      : 0.630607,  # sweet 0.9%  WR=49% N=123 — bucket 0.8-1%
-    'ORCAUSDT'     : 0.024665,  # sweet 0.9%  WR=51% N=196 — bucket 0.8-1%
-    'SHIB1000USDT' : 0.000162,  # sweet 1.75% WR=49% N=121 — bucket 1.5-2%
-    'SOLUSDT'      : 1.409519,  # sweet 1.25% WR=50% N=117 — bucket 1-1.5%
-    'TAOUSDT'      : 4.022402,  # sweet 0.9%  WR=65% N=63  — bucket 0.8-1% ★
-    'VIRTUALUSDT'  : 0.012080,  # sweet 0.9%  WR=48% N=82  — bucket 0.8-1%
-    'XRPUSDT'      : 0.018595,  # sweet 0.65% WR=46% N=113 — bucket 0.6-0.8%
+# ── Dist range filter: skip setup kalau dist% di luar sweet spot ────────────
+# dist% = (c1_close - c1_low/high) / c1_close × 100
+# Range dari bucket analysis backtest Jan2025-Apr2026 (dist dinamis).
+DIST_RANGE_FILTER = {
+    '1000BONKUSDT' : (0.4, 0.8),   # 0.4-0.6: WR=48% N=159, 0.6-0.8: WR=47% N=53
+    'AAVEUSDT'     : (0.6, 1.5),   # 0.8-1: WR=46% N=151, 0.6-0.8: WR=46% N=124
+    'BERAUSDT'     : (0.6, 1.5),   # 0.6-0.8: WR=50% N=117, 0.8-1: WR=50% N=198
+    'GMXUSDT'      : (1.0, 2.0),   # 1-1.5: WR=47% N=270
+    'ICPUSDT'      : (0.6, 1.5),   # 0.8-1: WR=50% N=111, 1-1.5: WR=46% N=226
+    'JUPUSDT'      : (1.0, 2.0),   # 1-1.5: WR=47% N=127, 1.5-2: WR=49% N=111
+    'LTCUSDT'      : (0.6, 1.5),   # 0.8-1: WR=49% N=123, 1.5-2: WR=46% N=71
+    'ORCAUSDT'     : (0.6, 1.5),   # 0.8-1: WR=51% N=196 ★
+    'SHIB1000USDT' : (1.0, 2.5),   # 1-1.5: WR=47% N=135, 1.5-2: WR=49% N=121
+    'SOLUSDT'      : (1.0, 1.5),   # 1-1.5: WR=50% N=117
+    'TAOUSDT'      : (0.6, 1.0),   # 0.8-1: WR=65% N=63 ★, 0.4-0.6: WR=49% N=211
+    'VIRTUALUSDT'  : (0.6, 1.5),   # 0.8-1: WR=48% N=82
+    'XRPUSDT'      : (0.4, 0.8),   # 0.4-0.6: WR=44% N=114, 0.6-0.8: WR=46% N=113
 }
+
 
 pending          = {}
 active_positions = {}
@@ -1032,20 +1034,21 @@ def run_bot():
                                     else:
                                         dist_n = max(c1_h - c1_c, 0.0)
                                         entry_n = c1_c; sl_n = c1_h
-                                    # Fixed pip: override dist & sl
-                                    _fd = FIXED_DIST_PER_COIN.get(coin, 0.0)
-                                    if _fd > 0:
-                                        dist_n = _fd
-                                        sl_n   = c1_c - dist_n if new_st == 'Long' else c1_c + dist_n
-                                    if dist_n >= c1_c * 0.002:
-                                        pending[coin] = {
-                                            'type': new_st, 'phase': 'WAIT_APPROACH',
-                                            'entry': entry_n, 'sl': sl_n, 'dist': dist_n,
-                                            'orig_ocl': c1_c, 'choch_level': None,
-                                            'swing_val': None, 'fvg_only': True,
-                                        }
-                                        print(f"   ✅ Setup baru: {new_st} Entry:{entry_n:.6f} "
-                                              f"SL:{sl_n:.6f} dist:{dist_n/c1_c*100:.3f}%")
+                                    # Dist range filter: skip pending replace jika di luar sweet spot
+                                    if c1_c > 0 and dist_n > 0:
+                                        _dist_pct_n = dist_n / c1_c * 100
+                                        _rng_n = DIST_RANGE_FILTER.get(coin)
+                                        if _rng_n and not (_rng_n[0] <= _dist_pct_n <= _rng_n[1]):
+                                            pass  # di luar sweet spot, biarkan pending lama
+                                        elif dist_n >= c1_c * 0.002:
+                                            pending[coin] = {
+                                                'type': new_st, 'phase': 'WAIT_APPROACH',
+                                                'entry': entry_n, 'sl': sl_n, 'dist': dist_n,
+                                                'orig_ocl': c1_c, 'choch_level': None,
+                                                'swing_val': None, 'fvg_only': True,
+                                            }
+                                            print(f"   ✅ Setup baru: {new_st} Entry:{entry_n:.6f} "
+                                                  f"SL:{sl_n:.6f} dist:{dist_n/c1_c*100:.3f}%")
                                     continue
                     else:
                         # BOS mode: refresh FVG list dari bos_idx
@@ -1425,11 +1428,12 @@ def run_bot():
                     else:
                         dist = max(c1_h - c1_c, 0.0)
                         entry_adj = c1_c; sl_entry = c1_h
-                    # Fixed pip: override dist & sl dengan nilai rata-rata historis
-                    _fd = FIXED_DIST_PER_COIN.get(coin, 0.0)
-                    if _fd > 0:
-                        dist     = _fd
-                        sl_entry = c1_c - dist if stype == 'Long' else c1_c + dist
+                    # Dist range filter: skip setup jika dist% di luar sweet spot
+                    if c1_c > 0 and dist > 0:
+                        _dist_pct = dist / c1_c * 100
+                        _rng = DIST_RANGE_FILTER.get(coin)
+                        if _rng and not (_rng[0] <= _dist_pct <= _rng[1]):
+                            continue
                     if dist < c1_c * 0.002:
                         print(f"   {coin}: FVG dist terlalu kecil ({dist/c1_c*100:.3f}%)")
                         continue
@@ -1537,11 +1541,12 @@ def run_bot():
                         entry_adj = c1_c
                         dist      = max(c1_h - c1_c, 0.0)
                         sl_entry  = c1_h
-                    # Fixed pip: override dist & sl dengan nilai rata-rata historis
-                    _fd = FIXED_DIST_PER_COIN.get(coin, 0.0)
-                    if _fd > 0:
-                        dist     = _fd
-                        sl_entry = c1_c - dist if stype == 'Long' else c1_c + dist
+                    # Dist range filter: skip setup jika dist% di luar sweet spot
+                    if c1_c > 0 and dist > 0:
+                        _dist_pct = dist / c1_c * 100
+                        _rng = DIST_RANGE_FILTER.get(coin)
+                        if _rng and not (_rng[0] <= _dist_pct <= _rng[1]):
+                            continue
                     if dist < c1_c * 0.002:
                         continue  # SL terlalu dekat entry
 

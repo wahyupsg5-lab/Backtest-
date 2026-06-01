@@ -566,7 +566,7 @@ def _run():
 
     _log_msg("=" * 62)
     _trail_str = f" Trail={_TRAIL_STOP}R+Reverse" if _TRAIL_STOP > 0 else f" TP={_TP_MULT}R"
-    _pip_str   = " FixedPip:ON" if bt.USE_FIXED_DIST else ""
+    _pip_str   = " FixedPip:ON" if bt.USE_FIXED_DIST else (" DistFilter:ON" if bt.USE_DIST_FILTER else "")
     _log_msg(f"BACKTEST {len(COINS)} COIN — {_ENTRY_MODE.upper()} SL={_SL_MULT}R{_trail_str} TouchVol≥{_TOUCH_VOL_MIN}× MaxGap≤{_MAX_GAP_PCT*100:.2f}% CoinFilter:ON{_pip_str} | Jan 2025–Apr 2026 | Modal ${INITIAL_BALANCE:.0f} | Risk 1%")
     _log_msg(f"{len(COINS)} Coins: {', '.join(COINS)}")
     _log_msg("=" * 62)
@@ -593,7 +593,7 @@ def _run():
                 _log_msg(f"   ❌ {symbol}: {e}")
 
         bt.REQUIRE_BOS = False  # FVG-only mode: tidak perlu BOS H1
-        _pip_tag = " | SL=FixedPip" if bt.USE_FIXED_DIST else ""
+        _pip_tag = " | SL=FixedPip" if bt.USE_FIXED_DIST else (" | DistFilter:ON" if bt.USE_DIST_FILTER else "")
         _log_msg(f"\n🔄 Concurrent backtest (FVG-only): {len(coins_data)} coin, max {bt.MAX_CONCURRENT} slot{_pip_tag}...")
         concurrent_trades, concurrent_final, monthly_diag_bt = bt.backtest_concurrent(
             coins_data, initial_balance=INITIAL_BALANCE, max_concurrent=bt.MAX_CONCURRENT)

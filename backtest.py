@@ -41,26 +41,45 @@ MAX_CONCURRENT = 5      # maks posisi/limit aktif bersamaan lintas semua coin
 
 # ── Fixed SL distance (pip mode) ────────────────────────────────────────────
 # True  = dist pakai nilai fixed per coin di bawah (rata-rata C1 range historis)
-# False = dist pakai C1 range FVG aktual (perilaku lama)
-USE_FIXED_DIST = True
+# False = dist pakai C1 range FVG aktual (perilaku lama, tidak diubah)
+USE_FIXED_DIST = False
 
-# Fixed SL distance per coin — dihitung dari sweet-spot bucket WR tertinggi.
-# Rumus: avg_dist_price × (sweet_spot_pct / avg_dist_pct)
-# Sweet spot dipilih dari bucket dist% dengan WR terbaik (N>=10) di backtest Jan2025-Apr2026.
+# Tidak dipakai — dist tetap dinamis dari C1 range.
 FIXED_DIST_PER_COIN: dict = {
-    '1000BONKUSDT' : 0.000107,  # sweet 0.5%  WR=48% N=159 — bucket 0.4-0.6%
-    'AAVEUSDT'     : 1.881164,  # sweet 0.9%  WR=46% N=151 — bucket 0.8-1%
-    'BERAUSDT'     : 0.028446,  # sweet 0.9%  WR=50% N=198 — bucket 0.8-1%
-    'GMXUSDT'      : 0.193918,  # sweet 1.25% WR=47% N=270 — bucket 1-1.5%
-    'ICPUSDT'      : 0.044336,  # sweet 0.9%  WR=50% N=111 — bucket 0.8-1%
-    'JUPUSDT'      : 0.004976,  # sweet 1.25% WR=47% N=127 — bucket 1-1.5%
-    'LTCUSDT'      : 0.630607,  # sweet 0.9%  WR=49% N=123 — bucket 0.8-1%
-    'ORCAUSDT'     : 0.024665,  # sweet 0.9%  WR=51% N=196 — bucket 0.8-1%
-    'SHIB1000USDT' : 0.000162,  # sweet 1.75% WR=49% N=121 — bucket 1.5-2%
-    'SOLUSDT'      : 1.409519,  # sweet 1.25% WR=50% N=117 — bucket 1-1.5%
-    'TAOUSDT'      : 4.022402,  # sweet 0.9%  WR=65% N=63  — bucket 0.8-1% ★
-    'VIRTUALUSDT'  : 0.012080,  # sweet 0.9%  WR=48% N=82  — bucket 0.8-1%
-    'XRPUSDT'      : 0.018595,  # sweet 0.65% WR=46% N=113 — bucket 0.6-0.8%
+    '1000BONKUSDT' : 0.000210,
+    'AAVEUSDT'     : 2.284569,
+    'BERAUSDT'     : 0.047505,
+    'GMXUSDT'      : 0.152497,
+    'ICPUSDT'      : 0.053991,
+    'JUPUSDT'      : 0.005525,
+    'LTCUSDT'      : 0.757429,
+    'ORCAUSDT'     : 0.024775,
+    'SHIB1000USDT' : 0.000098,
+    'SOLUSDT'      : 1.435454,
+    'TAOUSDT'      : 4.415704,
+    'VIRTUALUSDT'  : 0.020281,
+    'XRPUSDT'      : 0.017680,
+}
+
+# ── Dist range filter: skip setup kalau dist% (dist/entry×100) di luar range ──
+# Hanya ambil trade yang dist-nya sudah di sweet spot secara alami (dari bucket analysis).
+# None = tidak difilter untuk coin tersebut.
+USE_DIST_FILTER = True
+DIST_RANGE_FILTER: dict = {
+    # Coin              (min_pct, max_pct)  — sweet bucket dari backtest Jan2025-Apr2026
+    '1000BONKUSDT' : (0.4, 0.8),   # 0.4-0.6: WR=48% N=159, 0.6-0.8: WR=47% N=53
+    'AAVEUSDT'     : (0.6, 1.5),   # 0.8-1: WR=46% N=151, 0.6-0.8: WR=46% N=124
+    'BERAUSDT'     : (0.6, 1.5),   # 0.6-0.8: WR=50% N=117, 0.8-1: WR=50% N=198
+    'GMXUSDT'      : (1.0, 2.0),   # 1-1.5: WR=47% N=270
+    'ICPUSDT'      : (0.6, 1.5),   # 0.8-1: WR=50% N=111, 1-1.5: WR=46% N=226
+    'JUPUSDT'      : (1.0, 2.0),   # 1-1.5: WR=47% N=127, 1.5-2: WR=49% N=111
+    'LTCUSDT'      : (0.6, 1.5),   # 0.8-1: WR=49% N=123, 1.5-2: WR=46% N=71
+    'ORCAUSDT'     : (0.6, 1.5),   # 0.8-1: WR=51% N=196 ★
+    'SHIB1000USDT' : (1.0, 2.5),   # 1-1.5: WR=47% N=135, 1.5-2: WR=49% N=121
+    'SOLUSDT'      : (1.0, 1.5),   # 1-1.5: WR=50% N=117
+    'TAOUSDT'      : (0.6, 1.0),   # 0.8-1: WR=65% N=63 ★, 0.4-0.6: WR=49% N=211
+    'VIRTUALUSDT'  : (0.6, 1.5),   # 0.8-1: WR=48% N=82, 0.6-0.8: WR=22%(kecil N)
+    'XRPUSDT'      : (0.4, 0.8),   # 0.4-0.6: WR=44% N=114, 0.6-0.8: WR=46% N=113
 }
 
 
@@ -1668,6 +1687,14 @@ def _bt_conc_detect_bos(state: dict, active_slots: set,
     if fixed_dist > 0:
         dist       = fixed_dist
         sl_pending = c1_c - dist if stype == 'Long' else c1_c + dist
+    # ─────────────────────────────────────────────────────────────────────
+
+    # ── Dist range filter: skip setup kalau dist% di luar sweet spot ─────
+    if USE_DIST_FILTER and c1_c > 0 and dist > 0:
+        dist_pct = dist / c1_c * 100
+        rng = DIST_RANGE_FILTER.get(state['sym'])
+        if rng and not (rng[0] <= dist_pct <= rng[1]):
+            return
     # ─────────────────────────────────────────────────────────────────────
     d_trail    = dist
 
