@@ -87,24 +87,23 @@ DIST_RANGE_FILTER: dict = {
 # 'Long'  = hanya ambil Long setup
 # 'Short' = hanya ambil Short setup
 # None    = keduanya (tidak difilter)
-USE_DIR_FILTER = False
+USE_DIR_FILTER = True
 DIR_FILTER: dict = {
-    # Short-dominant (WR Short jauh lebih tinggi)
-    '1000BONKUSDT' : 'Short',  # Short 57% vs Long 38%  (selisih 19%)
-    'AAVEUSDT'     : 'Short',  # Short 61% vs Long 30%  (selisih 30%)
-    'BERAUSDT'     : 'Short',  # Short 74% vs Long 22%  (selisih 52%)
-    'ICPUSDT'      : 'Short',  # Short 67% vs Long 25%  (selisih 41%)
-    'JUPUSDT'      : 'Short',  # Short 80% vs Long 13%  (selisih 67%)
-    'LTCUSDT'      : 'Short',  # Short 61% vs Long 26%  (selisih 35%)
-    'ORCAUSDT'     : 'Short',  # Short 56% vs Long 42%  (selisih 15%)
-    'SHIB1000USDT' : 'Short',  # Short 85% vs Long  6%  (selisih 79%)
-    'SOLUSDT'      : 'Short',  # Short 95% vs Long  0%  (selisih 95%)
-    'VIRTUALUSDT'  : 'Short',  # Short 56% vs Long 35%  (selisih 20%)
-    # Long-dominant
-    'GMXUSDT'      : 'Long',   # Long  57% vs Short 32% (selisih 26%)
-    'TAOUSDT'      : 'Long',   # Long  61% vs Short 33% (selisih 28%)
-    # Keduanya boleh
-    'XRPUSDT'      : None,     # Long  52% vs Short 37% (selisih kecil, Long sedikit lebih baik)
+    # Dari kombinasi arah×sesi run 3 (SesFilter:ON, 3113 trade)
+    'AAVEUSDT'     : 'Short',  # Short semua sesi 82-84%
+    'BERAUSDT'     : 'Short',  # Short semua sesi 72-80%
+    'GMXUSDT'      : 'Short',  # Short semua sesi 82-90%
+    'ICPUSDT'      : 'Short',  # Short semua sesi 64-69%
+    'ORCAUSDT'     : 'Long',   # Long  semua sesi 52-75%
+    'SHIB1000USDT' : 'Short',  # Short semua sesi 81-90%
+    'SOLUSDT'      : 'Short',  # Short semua sesi 76-86%
+    'TAOUSDT'      : 'Long',   # Long  Asia=100% NY=89%
+    'VIRTUALUSDT'  : 'Long',   # Long  Asia=59%
+    'XRPUSDT'      : 'Short',  # Short semua sesi 63-67%
+    # N terlalu kecil — tidak difilter
+    '1000BONKUSDT' : None,
+    'JUPUSDT'      : None,
+    'LTCUSDT'      : None,
 }
 
 # ── Session filter per coin ──────────────────────────────────────────────────
@@ -113,19 +112,21 @@ DIR_FILTER: dict = {
 # None = semua sesi. Asia=00-08h London=08-13h NY=13-24h UTC.
 USE_SESSION_FILTER = True
 SESSION_FILTER: dict = {
-    '1000BONKUSDT' : ['NY'],              # NY 19% — best dari 3 sesi (N=16)
-    'AAVEUSDT'     : ['London'],          # London 58% N=12 ★
-    'BERAUSDT'     : None,               # semua sesi buruk, tidak filter
-    'GMXUSDT'      : ['London'],          # London 28% — best (N=18)
-    'ICPUSDT'      : None,               # N terlalu kecil
-    'JUPUSDT'      : ['NY'],              # NY 62% N=8 ★
-    'LTCUSDT'      : ['NY'],              # NY 45% N=29 ★
-    'ORCAUSDT'     : ['London', 'NY'],    # London 50%, NY 33%
-    'SHIB1000USDT' : None,               # N terlalu kecil
-    'SOLUSDT'      : None,               # semua rendah
-    'TAOUSDT'      : ['NY'],              # NY 44% — best (N=9)
-    'VIRTUALUSDT'  : ['London', 'NY'],    # London 50%, NY 46%
-    'XRPUSDT'      : ['London', 'NY'],    # London 47%, NY 47%
+    # Dari tabel kombinasi run 3 — filter sesi hanya jika ada perbedaan signifikan
+    # Coin yang Short semua sesi → sesi tidak perlu difilter (None)
+    '1000BONKUSDT' : None,               # N kecil
+    'AAVEUSDT'     : None,               # Short semua sesi 82-84% — tidak perlu filter sesi
+    'BERAUSDT'     : None,               # Short semua sesi 72-80%
+    'GMXUSDT'      : None,               # Short semua sesi 82-90%
+    'ICPUSDT'      : None,               # Short semua sesi 64-69%
+    'JUPUSDT'      : None,               # N kecil
+    'LTCUSDT'      : None,               # no data
+    'ORCAUSDT'     : None,               # Long semua sesi 52-75%
+    'SHIB1000USDT' : None,               # Short semua sesi 81-90%
+    'SOLUSDT'      : None,               # Short semua sesi 76-86%
+    'TAOUSDT'      : ['Asia', 'NY'],     # Long Asia=100% N=6, NY=89% N=19 (London 0 data)
+    'VIRTUALUSDT'  : ['Asia'],           # Long Asia=59% N=34 (NY Long hanya 34%)
+    'XRPUSDT'      : None,               # Short semua sesi 63-67%
 }
 
 

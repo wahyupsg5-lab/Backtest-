@@ -133,36 +133,36 @@ DIST_RANGE_FILTER = {
 # ── Direction filter per coin ────────────────────────────────────────────────
 # Dari analisis win/loss backtest: hanya ambil arah yang WR tinggi.
 DIR_FILTER: dict = {
-    '1000BONKUSDT' : 'Short',  # Short 57% vs Long 38%
-    'AAVEUSDT'     : 'Short',  # Short 61% vs Long 30%
-    'BERAUSDT'     : 'Short',  # Short 74% vs Long 22%
-    'ICPUSDT'      : 'Short',  # Short 67% vs Long 25%
-    'JUPUSDT'      : 'Short',  # Short 80% vs Long 13%
-    'LTCUSDT'      : 'Short',  # Short 61% vs Long 26%
-    'ORCAUSDT'     : 'Short',  # Short 56% vs Long 42%
-    'SHIB1000USDT' : 'Short',  # Short 85% vs Long  6%
-    'SOLUSDT'      : 'Short',  # Short 95% vs Long  0%
-    'VIRTUALUSDT'  : 'Short',  # Short 56% vs Long 35%
-    'GMXUSDT'      : 'Long',   # Long  57% vs Short 32%
-    'TAOUSDT'      : 'Long',   # Long  61% vs Short 33%
-    'XRPUSDT'      : None,     # Long  52% vs Short 37% (keduanya boleh)
+    'AAVEUSDT'     : 'Short',
+    'BERAUSDT'     : 'Short',
+    'GMXUSDT'      : 'Short',
+    'ICPUSDT'      : 'Short',
+    'ORCAUSDT'     : 'Long',
+    'SHIB1000USDT' : 'Short',
+    'SOLUSDT'      : 'Short',
+    'TAOUSDT'      : 'Long',
+    'VIRTUALUSDT'  : 'Long',
+    'XRPUSDT'      : 'Short',
+    '1000BONKUSDT' : None,
+    'JUPUSDT'      : None,
+    'LTCUSDT'      : None,
 }
 
 # ── Session filter per coin ──────────────────────────────────────────────────
 SESSION_FILTER: dict = {
-    '1000BONKUSDT' : ['NY'],
-    'AAVEUSDT'     : ['London'],
+    '1000BONKUSDT' : None,
+    'AAVEUSDT'     : None,
     'BERAUSDT'     : None,
-    'GMXUSDT'      : ['London'],
+    'GMXUSDT'      : None,
     'ICPUSDT'      : None,
-    'JUPUSDT'      : ['NY'],
-    'LTCUSDT'      : ['NY'],
-    'ORCAUSDT'     : ['London', 'NY'],
+    'JUPUSDT'      : None,
+    'LTCUSDT'      : None,
+    'ORCAUSDT'     : None,
     'SHIB1000USDT' : None,
     'SOLUSDT'      : None,
-    'TAOUSDT'      : ['NY'],
-    'VIRTUALUSDT'  : ['London', 'NY'],
-    'XRPUSDT'      : ['London', 'NY'],
+    'TAOUSDT'      : ['Asia', 'NY'],
+    'VIRTUALUSDT'  : ['Asia'],
+    'XRPUSDT'      : None,
 }
 
 
