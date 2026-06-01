@@ -87,7 +87,7 @@ DIST_RANGE_FILTER: dict = {
 # 'Long'  = hanya ambil Long setup
 # 'Short' = hanya ambil Short setup
 # None    = keduanya (tidak difilter)
-USE_DIR_FILTER = True
+USE_DIR_FILTER = False
 DIR_FILTER: dict = {
     # Short-dominant (WR Short jauh lebih tinggi)
     '1000BONKUSDT' : 'Short',  # Short 57% vs Long 38%  (selisih 19%)
@@ -105,6 +105,27 @@ DIR_FILTER: dict = {
     'TAOUSDT'      : 'Long',   # Long  61% vs Short 33% (selisih 28%)
     # Keduanya boleh
     'XRPUSDT'      : None,     # Long  52% vs Short 37% (selisih kecil, Long sedikit lebih baik)
+}
+
+# ── Session filter per coin ──────────────────────────────────────────────────
+# Hanya masuk trade pada sesi tertentu per coin.
+# Dari analisis sesi run 2 (DirFilter aktif, 615 trade).
+# None = semua sesi. Asia=00-08h London=08-13h NY=13-24h UTC.
+USE_SESSION_FILTER = True
+SESSION_FILTER: dict = {
+    '1000BONKUSDT' : ['NY'],              # NY 19% — best dari 3 sesi (N=16)
+    'AAVEUSDT'     : ['London'],          # London 58% N=12 ★
+    'BERAUSDT'     : None,               # semua sesi buruk, tidak filter
+    'GMXUSDT'      : ['London'],          # London 28% — best (N=18)
+    'ICPUSDT'      : None,               # N terlalu kecil
+    'JUPUSDT'      : ['NY'],              # NY 62% N=8 ★
+    'LTCUSDT'      : ['NY'],              # NY 45% N=29 ★
+    'ORCAUSDT'     : ['London', 'NY'],    # London 50%, NY 33%
+    'SHIB1000USDT' : None,               # N terlalu kecil
+    'SOLUSDT'      : None,               # semua rendah
+    'TAOUSDT'      : ['NY'],              # NY 44% — best (N=9)
+    'VIRTUALUSDT'  : ['London', 'NY'],    # London 50%, NY 46%
+    'XRPUSDT'      : ['London', 'NY'],    # London 47%, NY 47%
 }
 
 
@@ -1741,6 +1762,16 @@ def _bt_conc_detect_bos(state: dict, active_slots: set,
     if USE_DIR_FILTER:
         allowed = DIR_FILTER.get(state['sym'])
         if allowed is not None and stype_eff != allowed:
+            return
+    # ─────────────────────────────────────────────────────────────────────
+
+    # ── Session filter: skip setup jika jam entry di luar sesi izin ──────
+    if USE_SESSION_FILTER and ts_ms > 0:
+        import datetime as _dt
+        _h = _dt.datetime.utcfromtimestamp(ts_ms / 1000).hour
+        _sesi = 'Asia' if _h < 8 else ('London' if _h < 13 else 'NY')
+        _allowed_s = SESSION_FILTER.get(state['sym'])
+        if _allowed_s is not None and _sesi not in _allowed_s:
             return
     # ─────────────────────────────────────────────────────────────────────
 

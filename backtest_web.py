@@ -817,7 +817,8 @@ def _run():
     _trail_str = f" Trail={_TRAIL_STOP}R+Reverse" if _TRAIL_STOP > 0 else f" TP={_TP_MULT}R"
     _pip_str   = " FixedPip:ON" if bt.USE_FIXED_DIST else (" DistFilter:ON" if bt.USE_DIST_FILTER else "")
     _dir_str   = " DirFilter:ON" if bt.USE_DIR_FILTER else ""
-    _log_msg(f"BACKTEST {len(COINS)} COIN — {_ENTRY_MODE.upper()} SL={_SL_MULT}R{_trail_str} TouchVol≥{_TOUCH_VOL_MIN}× MaxGap≤{_MAX_GAP_PCT*100:.2f}% CoinFilter:ON{_pip_str}{_dir_str} | Jan 2025–Apr 2026 | Modal ${INITIAL_BALANCE:.0f} | Risk 1%")
+    _ses_str   = " SesFilter:ON" if bt.USE_SESSION_FILTER else ""
+    _log_msg(f"BACKTEST {len(COINS)} COIN — {_ENTRY_MODE.upper()} SL={_SL_MULT}R{_trail_str} TouchVol≥{_TOUCH_VOL_MIN}× MaxGap≤{_MAX_GAP_PCT*100:.2f}% CoinFilter:ON{_pip_str}{_dir_str}{_ses_str} | Jan 2025–Apr 2026 | Modal ${INITIAL_BALANCE:.0f} | Risk 1%")
     _log_msg(f"{len(COINS)} Coins: {', '.join(COINS)}")
     _log_msg("=" * 62)
 

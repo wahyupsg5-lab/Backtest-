@@ -148,6 +148,23 @@ DIR_FILTER: dict = {
     'XRPUSDT'      : None,     # Long  52% vs Short 37% (keduanya boleh)
 }
 
+# ── Session filter per coin ──────────────────────────────────────────────────
+SESSION_FILTER: dict = {
+    '1000BONKUSDT' : ['NY'],
+    'AAVEUSDT'     : ['London'],
+    'BERAUSDT'     : None,
+    'GMXUSDT'      : ['London'],
+    'ICPUSDT'      : None,
+    'JUPUSDT'      : ['NY'],
+    'LTCUSDT'      : ['NY'],
+    'ORCAUSDT'     : ['London', 'NY'],
+    'SHIB1000USDT' : None,
+    'SOLUSDT'      : None,
+    'TAOUSDT'      : ['NY'],
+    'VIRTUALUSDT'  : ['London', 'NY'],
+    'XRPUSDT'      : ['London', 'NY'],
+}
+
 
 pending          = {}
 active_positions = {}
@@ -1052,10 +1069,7 @@ def run_bot():
                                     else:
                                         dist_n = max(c1_h - c1_c, 0.0)
                                         entry_n = c1_c; sl_n = c1_h
-                                    _allowed_n = DIR_FILTER.get(coin)
-                                    if _allowed_n is not None and new_st != _allowed_n:
-                                        pass  # skip direction
-                                    elif dist_n >= c1_c * 0.002:
+                                    if dist_n >= c1_c * 0.002:
                                         pending[coin] = {
                                             'type': new_st, 'phase': 'WAIT_APPROACH',
                                             'entry': entry_n, 'sl': sl_n, 'dist': dist_n,
@@ -1444,10 +1458,15 @@ def run_bot():
                         dist = max(c1_h - c1_c, 0.0)
                         entry_adj = c1_c; sl_entry = c1_h
 
-                    # Direction filter
-                    _allowed = DIR_FILTER.get(coin)
-                    if _allowed is not None and stype != _allowed:
-                        continue
+
+                    # Session filter
+                    import datetime as _dt
+                    _h_s = _dt.datetime.utcfromtimestamp(h1_df.iloc[-1]['ts_ms'] / 1000).hour if 'ts_ms' in h1_df.columns else -1
+                    if _h_s >= 0:
+                        _sesi = 'Asia' if _h_s < 8 else ('London' if _h_s < 13 else 'NY')
+                        _ses_allowed = SESSION_FILTER.get(coin)
+                        if _ses_allowed is not None and _sesi not in _ses_allowed:
+                            continue
                     if dist < c1_c * 0.002:
                         print(f"   {coin}: FVG dist terlalu kecil ({dist/c1_c*100:.3f}%)")
                         continue
@@ -1556,10 +1575,15 @@ def run_bot():
                         dist      = max(c1_h - c1_c, 0.0)
                         sl_entry  = c1_h
 
-                    # Direction filter
-                    _allowed = DIR_FILTER.get(coin)
-                    if _allowed is not None and stype != _allowed:
-                        continue
+
+                    # Session filter
+                    import datetime as _dt
+                    _h_s = _dt.datetime.utcfromtimestamp(h1_df.iloc[-1]['ts_ms'] / 1000).hour if 'ts_ms' in h1_df.columns else -1
+                    if _h_s >= 0:
+                        _sesi = 'Asia' if _h_s < 8 else ('London' if _h_s < 13 else 'NY')
+                        _ses_allowed = SESSION_FILTER.get(coin)
+                        if _ses_allowed is not None and _sesi not in _ses_allowed:
+                            continue
                     if dist < c1_c * 0.002:
                         continue  # SL terlalu dekat entry
 
