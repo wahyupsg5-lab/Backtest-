@@ -133,25 +133,25 @@ DIST_RANGE_FILTER = {
 # ── Direction filter per coin ────────────────────────────────────────────────
 # Dari analisis win/loss backtest: hanya ambil arah yang WR tinggi.
 DIR_FILTER: dict = {
+    '1000BONKUSDT' : 'Short',
+    'JUPUSDT'      : 'Short',
+    'LTCUSDT'      : 'Short',
     'AAVEUSDT'     : 'Short',
-    'BERAUSDT'     : 'Short',
-    'GMXUSDT'      : 'Short',
-    'ICPUSDT'      : 'Short',
-    'ORCAUSDT'     : 'Long',
-    'SHIB1000USDT' : 'Short',
-    'SOLUSDT'      : 'Short',
-    'TAOUSDT'      : 'Long',
-    'VIRTUALUSDT'  : 'Long',
-    'XRPUSDT'      : 'Short',
-    '1000BONKUSDT' : None,
-    'JUPUSDT'      : None,
-    'LTCUSDT'      : None,
+    'BERAUSDT'     : None,
+    'GMXUSDT'      : None,
+    'ICPUSDT'      : None,
+    'ORCAUSDT'     : None,
+    'SHIB1000USDT' : None,
+    'SOLUSDT'      : None,
+    'TAOUSDT'      : None,
+    'VIRTUALUSDT'  : None,
+    'XRPUSDT'      : None,
 }
 
 # ── Session filter per coin ──────────────────────────────────────────────────
 SESSION_FILTER: dict = {
     '1000BONKUSDT' : None,
-    'AAVEUSDT'     : None,
+    'AAVEUSDT'     : ['London'],
     'BERAUSDT'     : None,
     'GMXUSDT'      : None,
     'ICPUSDT'      : None,
@@ -160,8 +160,8 @@ SESSION_FILTER: dict = {
     'ORCAUSDT'     : None,
     'SHIB1000USDT' : None,
     'SOLUSDT'      : None,
-    'TAOUSDT'      : ['Asia', 'NY'],
-    'VIRTUALUSDT'  : ['Asia'],
+    'TAOUSDT'      : None,
+    'VIRTUALUSDT'  : None,
     'XRPUSDT'      : None,
 }
 
