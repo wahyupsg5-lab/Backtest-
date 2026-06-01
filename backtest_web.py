@@ -728,6 +728,16 @@ def _run():
         avg_rr = sum(rr_list) / len(rr_list) if rr_list else 0.0
         _log_msg(f"  Avg R:R = {avg_rr:.2f}:1 (dari {len(rr_list)} win)")
 
+        # Avg dist (entry–SL sebagai % dari entry price)
+        dist_pct_list = [t['dist'] / t['entry'] * 100
+                         for t in trades if t.get('dist', 0) > 0 and t.get('entry', 0) > 0]
+        avg_dist_pct = sum(dist_pct_list) / len(dist_pct_list) if dist_pct_list else 0.0
+        _log_msg(f"  Avg dist = {avg_dist_pct:.3f}% | "
+                 f"P10={sorted(dist_pct_list)[int(len(dist_pct_list)*0.1)]:.3f}% "
+                 f"P50={sorted(dist_pct_list)[int(len(dist_pct_list)*0.5)]:.3f}% "
+                 f"P90={sorted(dist_pct_list)[int(len(dist_pct_list)*0.9)]:.3f}%"
+                 if dist_pct_list else f"  Avg dist = —")
+
         results.append({
             'symbol': symbol, 'status': 'ok',
             'trades': n, 'win': len(wins), 'loss': nl,
@@ -738,7 +748,8 @@ def _run():
             'p25_atr': p25_atr,
             'sl_then_tp': sl_then_tp,
             'sl_choch':   sl_choch,
-            'avg_rr':     round(avg_rr, 2),
+            'avg_rr':      round(avg_rr, 2),
+            'avg_dist_pct': round(avg_dist_pct, 3),
             'win_loss': _win_loss_analysis(trades),
             '_trades':  trades,
         })
@@ -1075,8 +1086,10 @@ def _render_html() -> bytes:
             choch_c = 'g' if choch_pct >= 50 else ('y' if choch_pct >= 30 else 'r')
             total_n += r['trades']; total_win += r['win']; total_loss += r['loss']
             total_cpnl += cpnl
-            avg_rr  = r.get('avg_rr', 0.0)
-            rr_c    = 'g' if avg_rr >= 2.0 else ('y' if avg_rr >= 1.5 else 'r')
+            avg_rr   = r.get('avg_rr', 0.0)
+            avg_dist = r.get('avg_dist_pct', 0.0)
+            rr_c     = 'g' if avg_rr >= 2.0 else ('y' if avg_rr >= 1.5 else 'r')
+            dist_c   = 'y' if avg_dist > 1.5 or avg_dist < 0.3 else 'g'
             coin_rows += (
                 f'<tr>'
                 f'<td><b>{sym}</b></td>'
@@ -1087,6 +1100,7 @@ def _render_html() -> bytes:
                 f'<td class="{dd_c}">{r["max_dd"]:.1f}%</td>'
                 f'<td class="{pf_c}">{r["pf"]:.2f}</td>'
                 f'<td class="{rr_c}">{avg_rr:.2f}:1</td>'
+                f'<td class="{dist_c}">{avg_dist:.3f}%</td>'
                 f'<td class="{stp_c}" title="SL→TP: {stp} | CHOCH: {schoch} | Drift: {sdrift}">'
                 f'<small>TP:{stp} CH:{schoch} Dr:{sdrift}</small></td>'
                 f'<td class="{choch_c}" title="{choch_pct:.0f}% dari {nl} loss kena CHOCH">'
@@ -1109,6 +1123,9 @@ def _render_html() -> bytes:
         rr_tot_s  = f'{overall_rr:.2f}:1' if overall_rr > 0 else '—'
         dd_tot_c  = 'r' if port_max_dd > 20 else ('y' if port_max_dd > 10 else 'g')
         dd_tot_s  = f'{port_max_dd:.1f}%' if port_max_dd > 0 else '—'
+        all_dist  = [r.get('avg_dist_pct', 0.0) for r in ok_res if r.get('avg_dist_pct', 0) > 0]
+        avg_dist_tot = sum(all_dist) / len(all_dist) if all_dist else 0.0
+        dist_tot_s = f'{avg_dist_tot:.3f}%' if avg_dist_tot > 0 else '—'
         coin_rows += (
             f'<tr style="border-top:2px solid #30363d;font-weight:bold">'
             f'<td>TOTAL ({len(res_cp)} coin)</td>'
@@ -1118,6 +1135,7 @@ def _render_html() -> bytes:
             f'<td class="{"g" if total_cpnl>=0 else "r"}">{sign}{roi_tot:.0f}%</td>'
             f'<td class="{dd_tot_c}">{dd_tot_s}</td><td>—</td>'
             f'<td class="{rr_tot_c}">{rr_tot_s}</td>'
+            f'<td>{dist_tot_s}</td>'
             f'<td><small>TP:{stp_tot} CH:{schoch_tot} Dr:{sdrift_tot}</small></td>'
             f'<td>{choch_tot_pct:.0f}%</td>'
             f'<td>—</td></tr>\n'
@@ -1129,11 +1147,12 @@ def _render_html() -> bytes:
             <th>Coin</th><th>Trade</th><th>WR%</th>
             <th>PnL Compound</th><th>ROI%</th><th>MaxDD%</th><th>PF</th>
             <th title="Rata-rata R:R per trade (reward/risk)">Avg R:R</th>
+            <th title="Rata-rata jarak Entry–SL sebagai % dari harga entry">Avg Dist%</th>
             <th title="SL→TP: balik ke TP setelah SL | CHOCH: struktur berbalik | Drift: ambiguous">SL Breakdown</th>
             <th title="Persen loss yang kena CHOCH (struktur beneran balik)">CHOCH%</th>
             <th>ATR P25</th>
           </tr>
-          {coin_rows or '<tr><td colspan="11" class="y">Menunggu hasil pertama…</td></tr>'}
+          {coin_rows or '<tr><td colspan="12" class="y">Menunggu hasil pertama…</td></tr>'}
         </table>
     '''
 
