@@ -64,7 +64,7 @@ FIXED_DIST_PER_COIN: dict = {
 # ── Dist range filter: skip setup kalau dist% (dist/entry×100) di luar range ──
 # Hanya ambil trade yang dist-nya sudah di sweet spot secara alami (dari bucket analysis).
 # None = tidak difilter untuk coin tersebut.
-USE_DIST_FILTER = True
+USE_DIST_FILTER = False
 DIST_RANGE_FILTER: dict = {
     # Coin              (min_pct, max_pct)  — sweet bucket dari backtest Jan2025-Apr2026
     '1000BONKUSDT' : (0.4, 0.8),   # 0.4-0.6: WR=48% N=159, 0.6-0.8: WR=47% N=53

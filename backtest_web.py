@@ -375,6 +375,243 @@ def _calc_quarters_compound(replayed: list) -> dict:
 
 
 # ── Dist bucket analysis (win vs loss) ──────────────────────────────────────
+
+
+def _deep_analysis(trades: list) -> str:
+    """
+    Analisis mendalam win vs loss untuk semua coin dan agregat.
+    Menghasilkan tabel-tabel yang bisa langsung dijadikan dasar filter.
+
+    Analisis yang dilakukan:
+    1. Sesi trading (Asia/London/NY) per coin — WR per sesi
+    2. Arah (Long/Short) per coin — WR per arah
+    3. Hari dalam seminggu — WR per hari
+    4. Jam entry (UTC) — WR per jam bucket
+    5. Kombinasi arah × sesi — sweet spot per coin
+    6. Gap% (gap_size / entry) — apakah ada korelasi dengan WR
+    7. Ringkasan rekomendasi filter per coin
+    """
+    if not trades:
+        return ""
+
+    import datetime
+
+    # ── Sesi helper ──────────────────────────────────────────────────────
+    def get_session(ts_ms):
+        """Return sesi dominan berdasarkan jam UTC entry."""
+        try:
+            dt  = datetime.datetime.utcfromtimestamp(int(ts_ms) / 1000)
+            h   = dt.hour
+            if  0 <= h <  8: return 'Asia'
+            if  8 <= h < 13: return 'London'
+            return 'NY'
+        except Exception:
+            return '?'
+
+    def get_day(ts_ms):
+        try:
+            dt = datetime.datetime.utcfromtimestamp(int(ts_ms) / 1000)
+            return dt.strftime('%a')  # Mon Tue Wed...
+        except Exception:
+            return '?'
+
+    def get_hour_bucket(ts_ms):
+        try:
+            dt = datetime.datetime.utcfromtimestamp(int(ts_ms) / 1000)
+            h  = (dt.hour // 2) * 2
+            return f"{h:02d}-{h+2:02d}"
+        except Exception:
+            return '?'
+
+    def wr_str(w, n):
+        if n == 0: return '—'
+        return f"{w/n*100:.0f}%({w}/{n})"
+
+    def best_tag(wr, threshold=50):
+        return ' ★' if wr >= threshold else ''
+
+    lines = []
+
+    coins = sorted({t.get('symbol','?') for t in trades})
+
+    # ════════════════════════════════════════════════════════════════════
+    # 1. WR PER SESI per coin
+    # ════════════════════════════════════════════════════════════════════
+    lines += ["", "═"*72,
+              "📊 1. WIN RATE PER SESI (entry time UTC)",
+              "   Asia=00-08 | London=08-13 | NY=13-24",
+              f"{'Coin':<20} {'Asia':>14} {'London':>14} {'NY':>14}  Rekomendasi",
+              "─"*72]
+
+    sesi_rec = {}  # {coin: best_session}
+    for coin in coins:
+        ct = [t for t in trades if t.get('symbol') == coin]
+        bkt = {'Asia':{'w':0,'l':0}, 'London':{'w':0,'l':0}, 'NY':{'w':0,'l':0}}
+        for t in ct:
+            s = get_session(t.get('entry_ts', 0))
+            if s in bkt:
+                if t['outcome'] == 'tp': bkt[s]['w'] += 1
+                else:                    bkt[s]['l'] += 1
+        parts = {}
+        for s in ('Asia','London','NY'):
+            b = bkt[s]; n = b['w']+b['l']
+            parts[s] = (b['w'], n, b['w']/n*100 if n else 0)
+        best_s = max(('Asia','London','NY'), key=lambda s: parts[s][2] if parts[s][1]>=5 else -1)
+        sesi_rec[coin] = best_s if parts[best_s][1] >= 5 else '—'
+        rec = f"→ {best_s}" if parts[best_s][1] >= 5 else "→ data kurang"
+        lines.append(f"  {coin:<20} {wr_str(*parts['Asia'][:2]):>14} "
+                     f"{wr_str(*parts['London'][:2]):>14} "
+                     f"{wr_str(*parts['NY'][:2]):>14}  {rec}")
+    lines.append("─"*72)
+
+    # ════════════════════════════════════════════════════════════════════
+    # 2. WR PER ARAH per coin
+    # ════════════════════════════════════════════════════════════════════
+    lines += ["", "═"*72,
+              "📊 2. WIN RATE PER ARAH (Long vs Short)",
+              f"{'Coin':<20} {'Long':>16} {'Short':>16}  Rekomendasi",
+              "─"*72]
+
+    dir_rec = {}
+    for coin in coins:
+        ct  = [t for t in trades if t.get('symbol') == coin]
+        lw  = sum(1 for t in ct if t['type']=='Long'  and t['outcome']=='tp')
+        ln  = sum(1 for t in ct if t['type']=='Long')
+        sw  = sum(1 for t in ct if t['type']=='Short' and t['outcome']=='tp')
+        sn  = sum(1 for t in ct if t['type']=='Short')
+        lwr = lw/ln*100 if ln else 0
+        swr = sw/sn*100 if sn else 0
+        if ln >= 10 and sn >= 10:
+            best_d = 'Long' if lwr >= swr else 'Short'
+            diff   = abs(lwr - swr)
+            rec    = f"→ {best_d} (selisih {diff:.0f}%)" if diff >= 5 else "→ keduanya mirip"
+        elif ln >= 10:
+            best_d = 'Long'; rec = "→ Long (Short data kurang)"
+        elif sn >= 10:
+            best_d = 'Short'; rec = "→ Short (Long data kurang)"
+        else:
+            best_d = '—'; rec = "→ data kurang"
+        dir_rec[coin] = best_d
+        tag_l = ' ★' if ln>=10 and lwr>swr and abs(lwr-swr)>=5 else ''
+        tag_s = ' ★' if sn>=10 and swr>lwr and abs(lwr-swr)>=5 else ''
+        lines.append(f"  {coin:<20} {wr_str(lw,ln)+tag_l:>16} "
+                     f"{wr_str(sw,sn)+tag_s:>16}  {rec}")
+    lines.append("─"*72)
+
+    # ════════════════════════════════════════════════════════════════════
+    # 3. WR PER HARI
+    # ════════════════════════════════════════════════════════════════════
+    days_order = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+    lines += ["", "═"*72,
+              "📊 3. WIN RATE PER HARI (UTC, agregat semua coin)",
+              f"{'Hari':<8} {'N':>5} {'WR%':>7}  Bar",
+              "─"*40]
+    day_bkt = {d:{'w':0,'l':0} for d in days_order}
+    for t in trades:
+        d = get_day(t.get('entry_ts',0))
+        if d in day_bkt:
+            if t['outcome']=='tp': day_bkt[d]['w'] += 1
+            else:                  day_bkt[d]['l'] += 1
+    for d in days_order:
+        b = day_bkt[d]; n = b['w']+b['l']
+        if n == 0: continue
+        wr = b['w']/n*100
+        bar = '█' * int(wr/5) + ('★' if wr>=50 else '')
+        lines.append(f"  {d:<6} {n:>5} {wr:>6.1f}%  {bar}")
+    lines.append("─"*40)
+
+    # ════════════════════════════════════════════════════════════════════
+    # 4. WR PER JAM BUCKET (agregat)
+    # ════════════════════════════════════════════════════════════════════
+    lines += ["", "═"*72,
+              "📊 4. WIN RATE PER JAM UTC (bucket 2 jam, agregat semua coin)",
+              f"{'Jam':>7} {'N':>5} {'WR%':>7}  Sesi        Bar",
+              "─"*50]
+    hour_bkt = {}
+    for t in trades:
+        hb = get_hour_bucket(t.get('entry_ts',0))
+        if hb not in hour_bkt: hour_bkt[hb] = {'w':0,'l':0}
+        if t['outcome']=='tp': hour_bkt[hb]['w'] += 1
+        else:                  hour_bkt[hb]['l'] += 1
+    def sesi_of_hb(hb):
+        try:
+            h = int(hb.split('-')[0])
+            if h < 8: return 'Asia  '
+            if h < 13: return 'London'
+            return 'NY    '
+        except: return '      '
+    for hb in sorted(hour_bkt):
+        b = hour_bkt[hb]; n = b['w']+b['l']
+        wr = b['w']/n*100 if n else 0
+        bar = '█' * int(wr/5) + ('★' if wr>=50 else '')
+        lines.append(f"  {hb+'h':>7} {n:>5} {wr:>6.1f}%  {sesi_of_hb(hb)}  {bar}")
+    lines.append("─"*50)
+
+    # ════════════════════════════════════════════════════════════════════
+    # 5. KOMBINASI ARAH × SESI per coin (sweet spot table)
+    # ════════════════════════════════════════════════════════════════════
+    lines += ["", "═"*72,
+              "📊 5. KOMBINASI ARAH × SESI per coin (WR — hanya N≥5 ditampilkan)",
+              "─"*72]
+    for coin in coins:
+        ct = [t for t in trades if t.get('symbol') == coin]
+        combos = {}
+        for t in ct:
+            k = f"{t['type'][:1]}-{get_session(t.get('entry_ts',0))}"
+            if k not in combos: combos[k] = {'w':0,'l':0}
+            if t['outcome']=='tp': combos[k]['w'] += 1
+            else:                  combos[k]['l'] += 1
+        parts = []
+        best_wr_combo = 0; best_k = ''
+        for k in sorted(combos):
+            b = combos[k]; n = b['w']+b['l']
+            if n < 5: continue
+            wr = b['w']/n*100
+            tag = '★' if wr >= 50 else ''
+            parts.append(f"{k}:{wr_str(b['w'],n)}{tag}")
+            if wr > best_wr_combo: best_wr_combo = wr; best_k = k
+        if parts:
+            lines.append(f"  {coin:<20} " + "  ".join(parts))
+            if best_wr_combo >= 50:
+                lines.append(f"  {'':20} → Best: {best_k} WR={best_wr_combo:.0f}%")
+    lines.append("─"*72)
+
+    # ════════════════════════════════════════════════════════════════════
+    # 6. RINGKASAN REKOMENDASI FILTER per coin
+    # ════════════════════════════════════════════════════════════════════
+    lines += ["", "═"*72,
+              "💡 RINGKASAN REKOMENDASI FILTER PER COIN",
+              "   (berdasarkan analisis di atas — terapkan yang WR≥50% dengan N≥10)",
+              "─"*72]
+    for coin in coins:
+        ct = [t for t in trades if t.get('symbol') == coin]
+        n  = len(ct); w = sum(1 for t in ct if t['outcome']=='tp')
+        wr = w/n*100 if n else 0
+
+        # Cari combo terbaik
+        combos = {}
+        for t in ct:
+            k = (t['type'], get_session(t.get('entry_ts',0)))
+            if k not in combos: combos[k] = {'w':0,'l':0}
+            if t['outcome']=='tp': combos[k]['w'] += 1
+            else:                  combos[k]['l'] += 1
+        best_combos = sorted(
+            [(k,v) for k,v in combos.items() if v['w']+v['l']>=10],
+            key=lambda x: x[1]['w']/(x[1]['w']+x[1]['l']), reverse=True
+        )[:3]
+
+        lines.append(f"  {coin:<20} WR saat ini: {wr:.0f}% ({n} trade)")
+        for (d,s), b in best_combos:
+            n2 = b['w']+b['l']; wr2 = b['w']/n2*100
+            tag = ' ← filter ini' if wr2 >= 50 else ''
+            lines.append(f"    → {d} + {s}: WR={wr2:.0f}% N={n2}{tag}")
+        if not best_combos:
+            lines.append(f"    → data terlalu sedikit untuk rekomendasi")
+    lines.append("═"*72)
+
+    return "\n".join(lines)
+
+
 def _dist_bucket_analysis(trades: list) -> str:
     """
     Kelompokkan trade berdasarkan dist% (dist/entry × 100), hitung win rate per bucket.
@@ -749,6 +986,12 @@ def _run():
         _dist_analysis = _dist_bucket_analysis(concurrent_trades)
         if _dist_analysis:
             _log_msg(_dist_analysis)
+
+        # ── Deep analysis: sesi, arah, jam, hari, kombinasi ──────────────
+        _deep = _deep_analysis(concurrent_trades)
+        if _deep:
+            _log_msg(_deep)
+
         _log_msg("✅ SELESAI — Buka /readme untuk export README.md")
         return
 

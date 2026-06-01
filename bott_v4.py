@@ -1034,21 +1034,15 @@ def run_bot():
                                     else:
                                         dist_n = max(c1_h - c1_c, 0.0)
                                         entry_n = c1_c; sl_n = c1_h
-                                    # Dist range filter: skip pending replace jika di luar sweet spot
-                                    if c1_c > 0 and dist_n > 0:
-                                        _dist_pct_n = dist_n / c1_c * 100
-                                        _rng_n = DIST_RANGE_FILTER.get(coin)
-                                        if _rng_n and not (_rng_n[0] <= _dist_pct_n <= _rng_n[1]):
-                                            pass  # di luar sweet spot, biarkan pending lama
-                                        elif dist_n >= c1_c * 0.002:
-                                            pending[coin] = {
-                                                'type': new_st, 'phase': 'WAIT_APPROACH',
-                                                'entry': entry_n, 'sl': sl_n, 'dist': dist_n,
-                                                'orig_ocl': c1_c, 'choch_level': None,
-                                                'swing_val': None, 'fvg_only': True,
-                                            }
-                                            print(f"   ✅ Setup baru: {new_st} Entry:{entry_n:.6f} "
-                                                  f"SL:{sl_n:.6f} dist:{dist_n/c1_c*100:.3f}%")
+                                    if dist_n >= c1_c * 0.002:
+                                        pending[coin] = {
+                                            'type': new_st, 'phase': 'WAIT_APPROACH',
+                                            'entry': entry_n, 'sl': sl_n, 'dist': dist_n,
+                                            'orig_ocl': c1_c, 'choch_level': None,
+                                            'swing_val': None, 'fvg_only': True,
+                                        }
+                                        print(f"   ✅ Setup baru: {new_st} Entry:{entry_n:.6f} "
+                                              f"SL:{sl_n:.6f} dist:{dist_n/c1_c*100:.3f}%")
                                     continue
                     else:
                         # BOS mode: refresh FVG list dari bos_idx
@@ -1428,12 +1422,7 @@ def run_bot():
                     else:
                         dist = max(c1_h - c1_c, 0.0)
                         entry_adj = c1_c; sl_entry = c1_h
-                    # Dist range filter: skip setup jika dist% di luar sweet spot
-                    if c1_c > 0 and dist > 0:
-                        _dist_pct = dist / c1_c * 100
-                        _rng = DIST_RANGE_FILTER.get(coin)
-                        if _rng and not (_rng[0] <= _dist_pct <= _rng[1]):
-                            continue
+
                     if dist < c1_c * 0.002:
                         print(f"   {coin}: FVG dist terlalu kecil ({dist/c1_c*100:.3f}%)")
                         continue
@@ -1541,12 +1530,7 @@ def run_bot():
                         entry_adj = c1_c
                         dist      = max(c1_h - c1_c, 0.0)
                         sl_entry  = c1_h
-                    # Dist range filter: skip setup jika dist% di luar sweet spot
-                    if c1_c > 0 and dist > 0:
-                        _dist_pct = dist / c1_c * 100
-                        _rng = DIST_RANGE_FILTER.get(coin)
-                        if _rng and not (_rng[0] <= _dist_pct <= _rng[1]):
-                            continue
+
                     if dist < c1_c * 0.002:
                         continue  # SL terlalu dekat entry
 
