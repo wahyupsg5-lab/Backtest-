@@ -431,7 +431,7 @@ def _win_loss_analysis(trades: list) -> dict:
 
 def _insight(ws, ls) -> str:
     """One-line human-readable insight from win vs loss stats (fvg_strong)."""
-    if ws is None or ls is None:
+    if ws is None or ls is None or not isinstance(ws, dict) or not isinstance(ls, dict):
         return '—'
     clues = []
     # Direction
@@ -466,7 +466,7 @@ def _insight(ws, ls) -> str:
 
 def _fmt_grp(s) -> str:
     """Compact one-line summary for a win/loss group (fvg_strong)."""
-    if s is None: return '—'
+    if s is None or not isinstance(s, dict): return '—'
     dir_lbl  = f'Long {s["long_pct"]:.0f}%' if s['long_pct'] >= 50 else f'Short {100-s["long_pct"]:.0f}%'
     vol_lbl  = f'C3 {s["avg_vol"]:.1f}×'   if s['avg_vol']  > 0 else 'C3 —'
     tvol_lbl = f'Tch {s["avg_tvol"]:.1f}×' if s['avg_tvol'] > 0 else 'Tch —'
@@ -582,7 +582,7 @@ def _run():
                 ts_ms = t.get('entry_ts') or t.get('exit_ts')
                 if not ts_ms:
                     continue
-                dt  = pd.Timestamp(ts_ms, unit='ms')
+                dt  = pd.Timestamp(int(ts_ms), unit='ms') if not isinstance(ts_ms, pd.Timestamp) else ts_ms
                 key = (dt.year, dt.month)
                 if key not in monthly:
                     monthly[key] = {'n': 0, 'w': 0, 'pnl': 0.0, 'win_rr': []}
@@ -639,7 +639,8 @@ def _run():
                 'avg_rr':      round(aw_s, 2),
                 'avg_dist_pct': round(avg_dp, 3),
                 'compound_pnl': pnl_s,
-                'win_loss': {'win': [], 'loss': []},
+                'win_loss': _win_loss_analysis(sym_tr),
+                '_trades':  sym_tr,
             })
 
         with _lock:
