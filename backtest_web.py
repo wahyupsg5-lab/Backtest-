@@ -55,12 +55,12 @@ COINS_SAVED = [
     'LTCUSDT', 'DYDXUSDT', 'FLOWUSDT', 'ICPUSDT',
 ]
 
-# 12 coin: hapus SOLUSDT, BELUSDT
+# 13 coin: kembalikan SOLUSDT, tanpa BELUSDT
 COINS = [
     '1000BONKUSDT', 'BERAUSDT', 'SHIB1000USDT', 'JUPUSDT',
     'ORCAUSDT', 'XRPUSDT', 'TAOUSDT',
-    'AAVEUSDT', 'GMXUSDT', 'LTCUSDT',
-    'ICPUSDT', 'VIRTUALUSDT',
+    'SOLUSDT', 'AAVEUSDT', 'GMXUSDT',
+    'LTCUSDT', 'ICPUSDT', 'VIRTUALUSDT',
 ]
 
 # 2025-01-01 00:00:00 UTC  →  2026-04-30 23:59:59 UTC  (dalam ms)
@@ -372,6 +372,90 @@ def _calc_quarters_compound(replayed: list) -> dict:
             'start_bal': q_start, 'end_bal': running,
         }
     return stats
+
+
+# ── Dist bucket analysis (win vs loss) ──────────────────────────────────────
+def _dist_bucket_analysis(trades: list) -> str:
+    """
+    Kelompokkan trade berdasarkan dist% (dist/entry × 100), hitung win rate per bucket.
+    Tampilkan sebagai tabel teks di log.
+    dist% = (dist / entry) × 100
+    """
+    if not trades:
+        return ""
+
+    import math
+
+    # Definisi bucket: batas atas dalam %
+    edges = [0.2, 0.4, 0.6, 0.8, 1.0, 1.5, 2.0, 3.0, 5.0, float('inf')]
+    labels = ['<0.2%','0.2-0.4%','0.4-0.6%','0.6-0.8%','0.8-1%',
+              '1-1.5%','1.5-2%','2-3%','3-5%','>5%']
+
+    buckets = {l: {'w': 0, 'l': 0, 'dists': []} for l in labels}
+
+    for t in trades:
+        dist  = t.get('dist', 0)
+        entry = t.get('entry', 0)
+        if not entry or not dist:
+            continue
+        pct = dist / entry * 100
+        for edge, lbl in zip(edges, labels):
+            if pct <= edge:
+                buckets[lbl]['dists'].append(pct)
+                if t.get('outcome') == 'tp':
+                    buckets[lbl]['w'] += 1
+                else:
+                    buckets[lbl]['l'] += 1
+                break
+
+    lines = [
+        "",
+        "📊 DIST BUCKET ANALYSIS (dist% = dist/entry × 100)",
+        f"{'Bucket':<12} {'N':>5} {'Win':>5} {'Loss':>5} {'WR%':>7} {'AvgDist%':>10}  Rekomendasi",
+        "─" * 65,
+    ]
+    best_wr = -1; best_lbl = ""
+    for lbl in labels:
+        b   = buckets[lbl]
+        n   = b['w'] + b['l']
+        if n == 0:
+            continue
+        wr  = b['w'] / n * 100
+        avg = sum(b['dists']) / len(b['dists'])
+        if n >= 5 and wr > best_wr:
+            best_wr = wr; best_lbl = lbl
+        tag = " ← best" if (n >= 5 and lbl == best_lbl) else ""
+        lines.append(f"{lbl:<12} {n:>5} {b['w']:>5} {b['l']:>5} {wr:>6.1f}%  {avg:>8.3f}%{tag}")
+
+    lines.append("─" * 65)
+
+    # Per-coin breakdown
+    lines.append("")
+    lines.append("📊 DIST BUCKET PER COIN")
+    coins = sorted({t.get('symbol','?') for t in trades})
+    for coin in coins:
+        ct = [t for t in trades if t.get('symbol') == coin]
+        if not ct:
+            continue
+        coin_buckets = {l: {'w':0,'l':0} for l in labels}
+        for t in ct:
+            dist  = t.get('dist', 0); entry = t.get('entry', 0)
+            if not entry or not dist: continue
+            pct = dist / entry * 100
+            for edge, lbl in zip(edges, labels):
+                if pct <= edge:
+                    if t.get('outcome') == 'tp': coin_buckets[lbl]['w'] += 1
+                    else:                         coin_buckets[lbl]['l'] += 1
+                    break
+        parts = []
+        for lbl in labels:
+            b = coin_buckets[lbl]; n = b['w'] + b['l']
+            if n == 0: continue
+            wr = b['w']/n*100
+            parts.append(f"{lbl}:{b['w']}/{n}({wr:.0f}%)")
+        lines.append(f"  {coin:<20} " + "  ".join(parts))
+
+    return "\n".join(lines)
 
 
 # ── Win/Loss analysis ────────────────────────────────────────────────────
@@ -874,6 +958,12 @@ def _run():
     for q, s in qs.items():
         _log_msg(f"  {q}: {s['trades']} trade | WR:{s['wr']:.0f}% | "
                  f"PnL:${s['pnl']:.2f} | ${s['start_bal']:.2f}→${s['end_bal']:.2f}")
+
+    # ── Dist bucket analysis: win rate per range dist% ──────────────────
+    _dist_analysis = _dist_bucket_analysis(all_trades_list)
+    if _dist_analysis:
+        _log_msg(_dist_analysis)
+
     _log_msg("✅ SELESAI — Buka /readme untuk markdown README.md")
 
     with _lock:

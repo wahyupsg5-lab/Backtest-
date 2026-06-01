@@ -42,7 +42,7 @@ MAX_CONCURRENT = 5      # maks posisi/limit aktif bersamaan lintas semua coin
 # ── Fixed SL distance (pip mode) ────────────────────────────────────────────
 # True  = dist pakai nilai fixed per coin di bawah (rata-rata C1 range historis)
 # False = dist pakai C1 range FVG aktual (perilaku lama)
-USE_FIXED_DIST = True
+USE_FIXED_DIST = False
 
 # Rata-rata dist C1 (c1_close - c1_low/high) dari backtest Jan2025–Apr2026.
 # Dipakai sebagai fixed SL distance per coin (dalam satuan harga, bukan %).
@@ -56,6 +56,7 @@ FIXED_DIST_PER_COIN: dict = {
     'LTCUSDT'      : 0.757429,
     'ORCAUSDT'     : 0.024775,
     'SHIB1000USDT' : 0.000098,
+    'SOLUSDT'      : 1.435454,
     'TAOUSDT'      : 4.415704,
     'VIRTUALUSDT'  : 0.020281,
     'XRPUSDT'      : 0.017680,
