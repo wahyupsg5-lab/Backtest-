@@ -42,6 +42,7 @@ bt.TRAIL_STOP      = _TRAIL_STOP
 bt.TRAIL_ACT_R     = _TRAIL_ACT_R
 bt.TRAIL_TIMEOUT_C = _TRAIL_TIMEOUT
 bt.MIN_DIST_PCT    = _MIN_DIST_PCT
+bt.FIXED_DIST_PER_COIN = {}  # reset tiap run supaya compute ulang dari data baru
 
 # ── Coin yang sudah lolos backtest fvg_sbr (disimpan, nanti digabung) ─────
 COINS_SAVED = [
@@ -511,6 +512,12 @@ def _run():
         _log_msg(f"\n🔄 Concurrent backtest (FVG-only): {len(coins_data)} coin, max {bt.MAX_CONCURRENT} slot...")
         concurrent_trades, concurrent_final, monthly_diag_bt = bt.backtest_concurrent(
             coins_data, initial_balance=INITIAL_BALANCE, max_concurrent=bt.MAX_CONCURRENT)
+
+        # Selalu log avg dist per coin (untuk referensi kalibrasi fixed pip)
+        if bt.FIXED_DIST_PER_COIN:
+            _log_msg("📐 Avg dist C1 per coin (referensi fixed pip):")
+            for _s, _v in sorted(bt.FIXED_DIST_PER_COIN.items()):
+                _log_msg(f"   {_s:20s} avg_dist = {_v:.6f}")
 
         if not concurrent_trades:
             _log_msg("⚠ Tidak ada trade dari concurrent backtest.")

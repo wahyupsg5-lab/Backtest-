@@ -39,6 +39,15 @@ APPROACH_R    = 2.0     # fvg_limit: place order saat harga dalam 2R dari entry
 REQUIRE_BOS   = True    # True = perlu BOS H1 dulu; False = FVG kuat langsung tanpa BOS
 MAX_CONCURRENT = 5      # maks posisi/limit aktif bersamaan lintas semua coin
 
+# ── Fixed SL distance (pip mode) ────────────────────────────────────────────
+# True  = dist pakai nilai fixed per coin di bawah (rata-rata C1 range historis)
+# False = dist pakai C1 range FVG aktual (perilaku lama)
+USE_FIXED_DIST = False
+
+# Nilai diisi otomatis oleh compute_avg_dist() saat backtest_concurrent dipanggil.
+# Bisa di-override manual jika perlu.
+FIXED_DIST_PER_COIN: dict = {}   # {symbol: avg_dist_in_price}
+
 
 DATA_DIR = "/home/claude/fulldata"
 FILES = {
@@ -1514,7 +1523,8 @@ def _diag_month(monthly_diag: dict, ts_s, key: str, n: int = 1) -> None:
 
 
 def _bt_conc_detect_bos(state: dict, active_slots: set,
-                         ts_ms: int = 0, monthly_diag: dict = None) -> None:
+                         ts_ms: int = 0, monthly_diag: dict = None,
+                         fixed_dist: float = 0.0) -> None:
     """
     Deteksi setup dari rolling H1.
     REQUIRE_BOS=True : BOS H1 → FVG kuat (mode default/live).
@@ -1638,6 +1648,12 @@ def _bt_conc_detect_bos(state: dict, active_slots: set,
     else:
         dist = max(c1_h - c1_c, 0.0)
         sl_pending = c1_h
+
+    # ── Fixed pip mode: override dist dengan nilai rata-rata historis ─────
+    if fixed_dist > 0:
+        dist       = fixed_dist
+        sl_pending = c1_c - dist if stype == 'Long' else c1_c + dist
+    # ─────────────────────────────────────────────────────────────────────
     d_trail    = dist
 
     if dist < c1_c * MIN_DIST_PCT:
@@ -1752,6 +1768,72 @@ def _bt_conc_update_trade(trade: dict, h: float, l: float, c: float,
     return None
 
 
+def compute_avg_dist(coins_data: dict) -> dict:
+    """
+    Scan semua FVG kuat per coin dari data H1 dan hitung rata-rata
+    dist (c1_close - c1_low untuk Long, c1_high - c1_close untuk Short).
+
+    Dipakai untuk menentukan FIXED_DIST_PER_COIN secara otomatis.
+    Returns: {symbol: avg_dist_in_price}
+    """
+    WARMUP = 2400
+    H1_WIN = 100
+    result = {}
+
+    for sym, df in coins_data.items():
+        df = df.reset_index(drop=True)
+        if len(df) < WARMUP + 12:
+            continue
+
+        # Build semua H1 dari data penuh
+        h1_all = []
+        for k in range(0, len(df) - 11, 12):
+            sl = df.iloc[k: k + 12]
+            if len(sl) < 12:
+                continue
+            h1_all.append({
+                'ts'   : sl['ts'].iloc[0],
+                'ts_ms': int(sl['ts_ms'].iloc[0]),
+                'open' : float(sl['open'].iloc[0]),
+                'high' : float(sl['high'].max()),
+                'low'  : float(sl['low'].min()),
+                'close': float(sl['close'].iloc[-1]),
+                'vol'  : float(sl['vol'].sum()) if 'vol' in sl.columns else 0.0,
+            })
+
+        dist_vals = []
+        # Slide window H1 untuk kumpulkan semua FVG kuat
+        for i in range(H1_WIN, len(h1_all)):
+            window = h1_all[i - H1_WIN: i]
+            h1_df  = pd.DataFrame(window)
+            for s in ('Long', 'Short'):
+                gaps = get_internal_gaps(h1_df, s, len(h1_df) - 1)
+                for g in gaps:
+                    if not (g.get('c3_vol', 0) > g.get('vol_max10h', 0) > 0):
+                        continue
+                    c1_c = float(g.get('c1_close', 0))
+                    c1_l = float(g.get('c1_low',   0))
+                    c1_h = float(g.get('c1_high',  0))
+                    if c1_c <= 0 or c1_h <= c1_l:
+                        continue
+                    c1_mid = (c1_h + c1_l) / 2.0
+                    if s == 'Long':
+                        if c1_c <= c1_mid: continue
+                        d = c1_c - c1_l
+                    else:
+                        if c1_c >= c1_mid: continue
+                        d = c1_h - c1_c
+                    if d > 0 and d >= c1_c * MIN_DIST_PCT:
+                        dist_vals.append(d)
+
+        if dist_vals:
+            result[sym] = sum(dist_vals) / len(dist_vals)
+        else:
+            result[sym] = 0.0
+
+    return result
+
+
 def backtest_concurrent(coins_data: dict,
                          initial_balance: float = INITIAL_BALANCE,
                          max_concurrent: int = MAX_CONCURRENT) -> tuple:
@@ -1764,7 +1846,14 @@ def backtest_concurrent(coins_data: dict,
     Returns: (all_trades, final_balance, monthly_diag)
     """
     import heapq
+    global FIXED_DIST_PER_COIN
 
+    # ── Selalu compute avg dist per coin (untuk log referensi fixed pip) ──
+    if not FIXED_DIST_PER_COIN:
+        FIXED_DIST_PER_COIN = compute_avg_dist(coins_data)
+
+    # ── Kalau USE_FIXED_DIST aktif, apply nilai fixed ke backtest ─────────
+    # (diaktifkan setelah nilai FIXED_DIST_PER_COIN dikalibrasi dari log)
     WARMUP = 2400    # 200 jam warmup per coin (identik backtest_coin)
     H1_WIN = 100     # 100 H1 dalam rolling window
 
@@ -1996,7 +2085,8 @@ def backtest_concurrent(coins_data: dict,
                 if len(state['h1_completed']) > H1_WIN:
                     state['h1_completed'] = state['h1_completed'][-H1_WIN:]
                 if len(state['h1_completed']) >= 20:
-                    _bt_conc_detect_bos(state, active_slots, ts_ms_ev, monthly_diag)
+                    _fx = FIXED_DIST_PER_COIN.get(sym, 0.0) if USE_FIXED_DIST else 0.0
+                    _bt_conc_detect_bos(state, active_slots, ts_ms_ev, monthly_diag, fixed_dist=_fx)
 
         # ── Push candle berikutnya untuk coin ini ──────────────────────
         nxt = idx + 1
