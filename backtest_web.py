@@ -397,28 +397,40 @@ def _deep_analysis(trades: list) -> str:
     import datetime
 
     # ── Sesi helper ──────────────────────────────────────────────────────
-    def get_session(ts_ms):
+    def get_session(ts_val):
         """Return sesi dominan berdasarkan jam UTC entry."""
         try:
-            dt  = datetime.datetime.utcfromtimestamp(int(ts_ms) / 1000)
-            h   = dt.hour
+            import pandas as _pd
+            if isinstance(ts_val, (_pd.Timestamp,)):
+                h = ts_val.hour
+            else:
+                import datetime as _dt
+                h = _dt.datetime.utcfromtimestamp(int(ts_val) / 1000).hour
             if  0 <= h <  8: return 'Asia'
             if  8 <= h < 13: return 'London'
             return 'NY'
         except Exception:
             return '?'
 
-    def get_day(ts_ms):
+    def get_day(ts_val):
         try:
-            dt = datetime.datetime.utcfromtimestamp(int(ts_ms) / 1000)
-            return dt.strftime('%a')  # Mon Tue Wed...
+            import pandas as _pd
+            if isinstance(ts_val, _pd.Timestamp):
+                return ts_val.strftime('%a')
+            import datetime as _dt
+            return _dt.datetime.utcfromtimestamp(int(ts_val) / 1000).strftime('%a')
         except Exception:
             return '?'
 
-    def get_hour_bucket(ts_ms):
+    def get_hour_bucket(ts_val):
         try:
-            dt = datetime.datetime.utcfromtimestamp(int(ts_ms) / 1000)
-            h  = (dt.hour // 2) * 2
+            import pandas as _pd
+            if isinstance(ts_val, _pd.Timestamp):
+                h = ts_val.hour
+            else:
+                import datetime as _dt
+                h = _dt.datetime.utcfromtimestamp(int(ts_val) / 1000).hour
+            h = (h // 2) * 2
             return f"{h:02d}-{h+2:02d}"
         except Exception:
             return '?'
@@ -804,7 +816,8 @@ def _run():
     _log_msg("=" * 62)
     _trail_str = f" Trail={_TRAIL_STOP}R+Reverse" if _TRAIL_STOP > 0 else f" TP={_TP_MULT}R"
     _pip_str   = " FixedPip:ON" if bt.USE_FIXED_DIST else (" DistFilter:ON" if bt.USE_DIST_FILTER else "")
-    _log_msg(f"BACKTEST {len(COINS)} COIN — {_ENTRY_MODE.upper()} SL={_SL_MULT}R{_trail_str} TouchVol≥{_TOUCH_VOL_MIN}× MaxGap≤{_MAX_GAP_PCT*100:.2f}% CoinFilter:ON{_pip_str} | Jan 2025–Apr 2026 | Modal ${INITIAL_BALANCE:.0f} | Risk 1%")
+    _dir_str   = " DirFilter:ON" if bt.USE_DIR_FILTER else ""
+    _log_msg(f"BACKTEST {len(COINS)} COIN — {_ENTRY_MODE.upper()} SL={_SL_MULT}R{_trail_str} TouchVol≥{_TOUCH_VOL_MIN}× MaxGap≤{_MAX_GAP_PCT*100:.2f}% CoinFilter:ON{_pip_str}{_dir_str} | Jan 2025–Apr 2026 | Modal ${INITIAL_BALANCE:.0f} | Risk 1%")
     _log_msg(f"{len(COINS)} Coins: {', '.join(COINS)}")
     _log_msg("=" * 62)
 

@@ -82,6 +82,31 @@ DIST_RANGE_FILTER: dict = {
     'XRPUSDT'      : (0.4, 0.8),   # 0.4-0.6: WR=44% N=114, 0.6-0.8: WR=46% N=113
 }
 
+# ── Direction filter per coin ────────────────────────────────────────────────
+# Dari analisis win/loss: filter arah berdasarkan WR per Long/Short.
+# 'Long'  = hanya ambil Long setup
+# 'Short' = hanya ambil Short setup
+# None    = keduanya (tidak difilter)
+USE_DIR_FILTER = True
+DIR_FILTER: dict = {
+    # Short-dominant (WR Short jauh lebih tinggi)
+    '1000BONKUSDT' : 'Short',  # Short 57% vs Long 38%  (selisih 19%)
+    'AAVEUSDT'     : 'Short',  # Short 61% vs Long 30%  (selisih 30%)
+    'BERAUSDT'     : 'Short',  # Short 74% vs Long 22%  (selisih 52%)
+    'ICPUSDT'      : 'Short',  # Short 67% vs Long 25%  (selisih 41%)
+    'JUPUSDT'      : 'Short',  # Short 80% vs Long 13%  (selisih 67%)
+    'LTCUSDT'      : 'Short',  # Short 61% vs Long 26%  (selisih 35%)
+    'ORCAUSDT'     : 'Short',  # Short 56% vs Long 42%  (selisih 15%)
+    'SHIB1000USDT' : 'Short',  # Short 85% vs Long  6%  (selisih 79%)
+    'SOLUSDT'      : 'Short',  # Short 95% vs Long  0%  (selisih 95%)
+    'VIRTUALUSDT'  : 'Short',  # Short 56% vs Long 35%  (selisih 20%)
+    # Long-dominant
+    'GMXUSDT'      : 'Long',   # Long  57% vs Short 32% (selisih 26%)
+    'TAOUSDT'      : 'Long',   # Long  61% vs Short 33% (selisih 28%)
+    # Keduanya boleh
+    'XRPUSDT'      : None,     # Long  52% vs Short 37% (selisih kecil, Long sedikit lebih baik)
+}
+
 
 DATA_DIR = "/home/claude/fulldata"
 FILES = {
@@ -1711,6 +1736,13 @@ def _bt_conc_detect_bos(state: dict, active_slots: set,
             stype_eff  = 'Short' if stype == 'Long' else 'Long'
             sl_pending = c1_c + dist if stype_eff == 'Short' else c1_c - dist
             choch_eff  = None
+
+    # ── Direction filter: skip setup jika arah tidak sesuai ──────────────
+    if USE_DIR_FILTER:
+        allowed = DIR_FILTER.get(state['sym'])
+        if allowed is not None and stype_eff != allowed:
+            return
+    # ─────────────────────────────────────────────────────────────────────
 
     existing = state['pending']
     if existing and existing.get('phase') == 'WAIT_FILL':

@@ -130,6 +130,24 @@ DIST_RANGE_FILTER = {
     'XRPUSDT'      : (0.4, 0.8),   # 0.4-0.6: WR=44% N=114, 0.6-0.8: WR=46% N=113
 }
 
+# ── Direction filter per coin ────────────────────────────────────────────────
+# Dari analisis win/loss backtest: hanya ambil arah yang WR tinggi.
+DIR_FILTER: dict = {
+    '1000BONKUSDT' : 'Short',  # Short 57% vs Long 38%
+    'AAVEUSDT'     : 'Short',  # Short 61% vs Long 30%
+    'BERAUSDT'     : 'Short',  # Short 74% vs Long 22%
+    'ICPUSDT'      : 'Short',  # Short 67% vs Long 25%
+    'JUPUSDT'      : 'Short',  # Short 80% vs Long 13%
+    'LTCUSDT'      : 'Short',  # Short 61% vs Long 26%
+    'ORCAUSDT'     : 'Short',  # Short 56% vs Long 42%
+    'SHIB1000USDT' : 'Short',  # Short 85% vs Long  6%
+    'SOLUSDT'      : 'Short',  # Short 95% vs Long  0%
+    'VIRTUALUSDT'  : 'Short',  # Short 56% vs Long 35%
+    'GMXUSDT'      : 'Long',   # Long  57% vs Short 32%
+    'TAOUSDT'      : 'Long',   # Long  61% vs Short 33%
+    'XRPUSDT'      : None,     # Long  52% vs Short 37% (keduanya boleh)
+}
+
 
 pending          = {}
 active_positions = {}
@@ -1034,7 +1052,10 @@ def run_bot():
                                     else:
                                         dist_n = max(c1_h - c1_c, 0.0)
                                         entry_n = c1_c; sl_n = c1_h
-                                    if dist_n >= c1_c * 0.002:
+                                    _allowed_n = DIR_FILTER.get(coin)
+                                    if _allowed_n is not None and new_st != _allowed_n:
+                                        pass  # skip direction
+                                    elif dist_n >= c1_c * 0.002:
                                         pending[coin] = {
                                             'type': new_st, 'phase': 'WAIT_APPROACH',
                                             'entry': entry_n, 'sl': sl_n, 'dist': dist_n,
@@ -1423,6 +1444,10 @@ def run_bot():
                         dist = max(c1_h - c1_c, 0.0)
                         entry_adj = c1_c; sl_entry = c1_h
 
+                    # Direction filter
+                    _allowed = DIR_FILTER.get(coin)
+                    if _allowed is not None and stype != _allowed:
+                        continue
                     if dist < c1_c * 0.002:
                         print(f"   {coin}: FVG dist terlalu kecil ({dist/c1_c*100:.3f}%)")
                         continue
@@ -1531,6 +1556,10 @@ def run_bot():
                         dist      = max(c1_h - c1_c, 0.0)
                         sl_entry  = c1_h
 
+                    # Direction filter
+                    _allowed = DIR_FILTER.get(coin)
+                    if _allowed is not None and stype != _allowed:
+                        continue
                     if dist < c1_c * 0.002:
                         continue  # SL terlalu dekat entry
 
