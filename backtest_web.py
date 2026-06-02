@@ -196,7 +196,7 @@ def fetch_bybit_m5(symbol: str) -> pd.DataFrame:
         if oldest_ts <= _START_MS:
             break
         cur_end = oldest_ts - 1
-        time.sleep(0.2)
+        time.sleep(0.5)   # jeda antar-call (hindari rate limit 10006 saat banyak coin)
 
     if not rows:
         return pd.DataFrame()
@@ -899,7 +899,7 @@ def _run():
                 _log_msg(f"   ✅ {symbol}: {len(df)} candle")
             except Exception as e:
                 _log_msg(f"   ❌ {symbol}: {e}")
-
+            time.sleep(1.0)   # jeda antar-coin (ringankan beban rate limit)
         bt.REQUIRE_BOS = False  # FVG-only mode: tidak perlu BOS H1
         _pip_tag = " | SL=FixedPip" if bt.USE_FIXED_DIST else (" | DistFilter:ON" if bt.USE_DIST_FILTER else "")
         _log_msg(f"\n🔄 Concurrent backtest (FVG-only): {len(coins_data)} coin, max {bt.MAX_CONCURRENT} slot{_pip_tag}...")
@@ -1553,7 +1553,8 @@ def _render_html() -> bytes:
             nl     = r['loss']
             sdrift = nl - stp - schoch
             choch_pct = schoch / nl * 100 if nl else 0
-            stp_c  = 'g' if stp / nl * 100 >= 30 else 'y' if stp / nl * 100 >= 15 else 'r' if nl else 'g'
+            stp_pct = (stp / nl * 100) if nl else 0
+            stp_c  = 'g' if (not nl or stp_pct >= 30) else 'y' if stp_pct >= 15 else 'r'
             choch_c = 'g' if choch_pct >= 50 else ('y' if choch_pct >= 30 else 'r')
             total_n += r['trades']; total_win += r['win']; total_loss += r['loss']
             total_cpnl += cpnl
