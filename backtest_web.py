@@ -8,7 +8,8 @@ Deploy ke Railway:
   /readme → markdown siap copy ke README.md
 """
 
-import os, threading, time
+import os, threading, time, io, zipfile
+from urllib.parse import urlparse, parse_qs
 from datetime import datetime, timezone, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -88,6 +89,43 @@ _compound_final_bal = INITIAL_BALANCE
 _overall_avg_rr     = 0.0         # avg R:R keseluruhan semua coin
 _overall_pf         = 0.0         # profit factor keseluruhan dari semua trade
 _portfolio_max_dd   = 0.0         # max drawdown portfolio compound
+_coin_data          = {}          # cache DataFrame M5 per coin (untuk download)
+
+
+# ── Download data per coin (txt format siap dibaca backtest.py) ──────────────
+def _df_to_txt(df: pd.DataFrame) -> str:
+    """Format: 'YYYY-MM-DD HH:MM:SS | open high low close vol' per baris.
+    Persis format yang dibaca backtest._parse_one_file()."""
+    ts = df['ts'].dt.strftime('%Y-%m-%d %H:%M:%S')
+    body = (ts + ' | '
+            + df['open'].astype(str)  + ' ' + df['high'].astype(str) + ' '
+            + df['low'].astype(str)   + ' ' + df['close'].astype(str) + ' '
+            + df['vol'].astype(str))
+    return '\n'.join(body.tolist())
+
+def _get_df_for(symbol: str) -> pd.DataFrame:
+    """Ambil dari cache; kalau belum ada, fetch on-demand dari Bybit."""
+    with _lock:
+        df = _coin_data.get(symbol)
+    if df is None or df.empty:
+        df = fetch_bybit_m5(symbol)
+        if not df.empty:
+            df = df[(df['ts'] >= pd.Timestamp(_START_MS, unit='ms')) &
+                    (df['ts'] <= pd.Timestamp(_END_MS, unit='ms'))].reset_index(drop=True)
+            with _lock:
+                _coin_data[symbol] = df
+    return df if df is not None else pd.DataFrame()
+
+def _build_zip(symbols: list) -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for sym in symbols:
+            df = _get_df_for(sym)
+            if df is None or df.empty:
+                continue
+            zf.writestr(f"{sym}_5m_2025-2026.txt", _df_to_txt(df))
+    buf.seek(0)
+    return buf.read()
 
 
 def _ts():
@@ -839,6 +877,8 @@ def _run():
                 df = df[(df['ts'] >= pd.Timestamp(_START_MS, unit='ms')) &
                         (df['ts'] <= pd.Timestamp(_END_MS, unit='ms'))].reset_index(drop=True)
                 coins_data[symbol] = df
+                with _lock:
+                    _coin_data[symbol] = df
                 _log_msg(f"   ✅ {symbol}: {len(df)} candle")
             except Exception as e:
                 _log_msg(f"   ❌ {symbol}: {e}")
@@ -1422,6 +1462,13 @@ Log monitoring: `https://<project>.up.railway.app/logs`
 _CSS = """
 <style>
 *{box-sizing:border-box}
+.dl{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px;margin:10px 0}
+.dlbtn{display:inline-block;margin:3px;padding:6px 10px;font-size:11px;
+       background:#21262d;color:#58a6ff;border:1px solid #30363d;border-radius:6px;
+       text-decoration:none;font-family:'Courier New',monospace}
+.dlbtn:hover{background:#30363d;color:#79c0ff}
+.dlall{background:#1f6feb;color:#fff;border-color:#1f6feb;font-weight:bold}
+.dlall:hover{background:#388bfd;color:#fff}
 body{font-family:'Courier New',monospace;background:#0d1117;color:#c9d1d9;
      padding:16px;max-width:100%;margin:0 auto;overflow-x:hidden}
 h1{color:#58a6ff;font-size:16px;margin:0 0 6px}
@@ -1646,6 +1693,21 @@ def _render_html() -> bytes:
     n_done  = len(res_cp)
     n_total = len(COINS)
 
+    # ── Tombol download data per coin (+ semua) ──────────────────────────
+    _btns = ''.join(
+        f'<a class="dlbtn" href="/download?coin={c}">{c}</a>' for c in COINS
+    )
+    dl_panel = (
+        '<div class="dl">'
+        '<b>⬇ Download data mentah (M5, Jan 2025–Apr 2026)</b>'
+        '<p style="font-size:11px;color:#8b949e;margin:4px 0 8px">'
+        'Klik coin untuk unduh .zip (format siap dibaca backtest.py). '
+        'Tunggu beberapa detik — data di-fetch dari Bybit.</p>'
+        f'<a class="dlbtn dlall" href="/download_all">⬇ SEMUA ({n_total} coin)</a>'
+        f'{_btns}'
+        '</div>'
+    )
+
     return f'''<!DOCTYPE html>
 <html lang="id">
 <head>
@@ -1664,6 +1726,8 @@ def _render_html() -> bytes:
     Status: {chip}
   </p>
   {done_note}
+
+  {dl_panel}
 
   <h2>Hasil Per Coin</h2>
   <div class="tbl-wrap">{coin_table}</div>
@@ -1692,7 +1756,43 @@ def _render_html() -> bytes:
 # ── HTTP handler ──────────────────────────────────────────────────────────
 class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path.startswith('/readme'):
+        parsed = urlparse(self.path)
+        path   = parsed.path
+        query  = parse_qs(parsed.query)
+
+        # ── Download per-coin / semua coin sebagai ZIP ───────────────────
+        if path == '/download':
+            coin = (query.get('coin', [''])[0] or '').upper()
+            if coin not in COINS:
+                self.send_response(404); self.end_headers()
+                self.wfile.write(b'coin tidak dikenal'); return
+            try:
+                data = _build_zip([coin])
+            except Exception as e:
+                self.send_response(500); self.end_headers()
+                self.wfile.write(f'error: {e}'.encode()); return
+            fname = f"{coin}_2025-2026.zip"
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/zip')
+            self.send_header('Content-Disposition', f'attachment; filename="{fname}"')
+            self.send_header('Content-Length', str(len(data)))
+            self.end_headers()
+            self.wfile.write(data); return
+
+        if path == '/download_all':
+            try:
+                data = _build_zip(COINS)
+            except Exception as e:
+                self.send_response(500); self.end_headers()
+                self.wfile.write(f'error: {e}'.encode()); return
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/zip')
+            self.send_header('Content-Disposition', 'attachment; filename="all_coins_2025-2026.zip"')
+            self.send_header('Content-Length', str(len(data)))
+            self.end_headers()
+            self.wfile.write(data); return
+
+        if path.startswith('/readme'):
             body  = _gen_readme().encode('utf-8')
             ctype = 'text/plain; charset=utf-8'
         elif self.path.startswith('/logs'):
