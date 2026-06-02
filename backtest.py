@@ -39,6 +39,15 @@ APPROACH_R    = 2.0     # fvg_limit: place order saat harga dalam 2R dari entry
 REQUIRE_BOS   = True    # True = perlu BOS H1 dulu; False = FVG kuat langsung tanpa BOS
 MAX_CONCURRENT = 5      # maks posisi/limit aktif bersamaan lintas semua coin
 
+# ── Partial TP / scale-out (LEVER WIN-RATE yang JUJUR) ───────────────────────
+# Bank sebagian qty di target dekat (high hit-rate), sisanya lari ke TP penuh.
+# Begitu partial kena → SL sisa pindah ke breakeven. Jadi sekali partial kena,
+# trade itu HAMPIR mustahil jadi loss penuh → WR naik secara mekanis & nyata.
+# PARTIAL_TP_FRAC = 0 → fitur mati (perilaku lama, tidak ada regresi).
+PARTIAL_TP_FRAC = 0.0   # contoh 0.5 = bank 50% qty di partial target
+PARTIAL_TP_R    = 1.0   # jarak partial target dari entry, dalam R (× dist)
+PARTIAL_BE      = True  # True = sisa SL ke breakeven setelah partial kena
+
 # ── Fixed SL distance (pip mode) ────────────────────────────────────────────
 # True  = dist pakai nilai fixed per coin di bawah (rata-rata C1 range historis)
 # False = dist pakai C1 range FVG aktual (perilaku lama, tidak diubah)
@@ -619,6 +628,14 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance,
     # Trail dist — decoupled dari SL dist: bisa pakai full-range dist kalau SL lebih ketat
     _td = trail_ref_dist if (trail_ref_dist is not None and trail_ref_dist > dist) else dist
 
+    # ── Partial TP setup ────────────────────────────────────────────────────
+    _pfrac = PARTIAL_TP_FRAC if 0.0 < PARTIAL_TP_FRAC < 1.0 else 0.0
+    partial_done = False
+    realized_partial = 0.0      # PnL kotor dari porsi yang sudah di-bank
+    rem_qty = qty               # qty sisa yang masih jalan
+    if _pfrac > 0:
+        ptp = (entry + PARTIAL_TP_R * dist) if stype == "Long" else (entry - PARTIAL_TP_R * dist)
+
     # Walk forward candle-by-candle
     future           = df_m5.iloc[entry_idx+1:]
     trail_sl         = sl
@@ -642,6 +659,13 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance,
             # Cek L vs trail_sl LAMA dulu (konservatif: L sebelum H dalam candle)
             if l <= cur_sl:
                 exit_p = cur_sl; exit_ts = c['ts']; outcome = 'sl'; break
+            # Partial TP: bank sebagian, sisa SL → breakeven
+            if _pfrac > 0 and not partial_done and h >= ptp:
+                realized_partial += (ptp - entry) * (qty * _pfrac)
+                rem_qty = qty * (1.0 - _pfrac)
+                partial_done = True
+                if PARTIAL_BE:
+                    sl = max(sl, entry); trail_sl = max(trail_sl, entry)
             # Baru update peak & trail dari H (untuk candle berikutnya)
             if TRAIL_STOP > 0 and h > peak:
                 peak = h
@@ -659,6 +683,13 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance,
             # Cek H vs trail_sl LAMA dulu (konservatif: H sebelum L dalam candle)
             if h >= cur_sl:
                 exit_p = cur_sl; exit_ts = c['ts']; outcome = 'sl'; break
+            # Partial TP: bank sebagian, sisa SL → breakeven
+            if _pfrac > 0 and not partial_done and l <= ptp:
+                realized_partial += (entry - ptp) * (qty * _pfrac)
+                rem_qty = qty * (1.0 - _pfrac)
+                partial_done = True
+                if PARTIAL_BE:
+                    sl = min(sl, entry); trail_sl = min(trail_sl, entry)
             # Baru update peak & trail dari L (untuk candle berikutnya)
             if TRAIL_STOP > 0 and l < peak:
                 peak = l
@@ -679,14 +710,18 @@ def simulate_trade(df_m5, entry_idx, entry, sl, tp, stype, balance,
                 exit_p = float(c['close']); exit_ts = c['ts']; outcome = 'timeout'; break
 
     if stype == "Long":
-        pnl = (exit_p - entry) * qty - total_fee
+        pnl = (exit_p - entry) * rem_qty + realized_partial - total_fee
     else:
-        pnl = (entry - exit_p) * qty - total_fee
+        pnl = (entry - exit_p) * rem_qty + realized_partial - total_fee
 
     # Trail exit yang menguntungkan → outcome 'tp' (win), bukan 'sl'
     if TRAIL_STOP > 0 and outcome == 'sl':
         if (stype == "Long" and exit_p > entry) or (stype == "Short" and exit_p < entry):
             outcome = 'tp'
+
+    # Partial sudah di-bank + sisa stop di BE → net profit → hitung sebagai win
+    if _pfrac > 0 and partial_done and outcome != 'tp' and pnl > 0:
+        outcome = 'tp'
 
     if _extra_out is not None:
         _extra_out['max_float_r']   = max_float / dist if dist > 0 else 0.0
