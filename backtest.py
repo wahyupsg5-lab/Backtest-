@@ -24,19 +24,19 @@ MIN_RR          = 1.5   # 1:2 = 2.0, 1:3 = 3.0 — cukup untuk contrarian
 MIN_DIST_PCT    = 0.002     # minimum SL distance 0.2% (fvg_sbr pakai C1 range, lebih kecil dari 0.5%)
 
 # ── Test variant config (override dari luar untuk testing) ──
-ENTRY_MODE   = 'bb_sl'  # 'bb_sl'|'bb_entry'|'fvg_touch'|'fvg_touch_rev'|'fvg_rev_limit'|'idm_touch'|'fvg_confirm'|'fvg_deep'|'fvg_dip'|'fvg_strong'|'fvg_sbr'|'fvg_50pct'|'fvg_limit'
+ENTRY_MODE   = 'fvg_limit'  # 'bb_sl'|'bb_entry'|'fvg_touch'|'fvg_touch_rev'|'fvg_rev_limit'|'idm_touch'|'fvg_confirm'|'fvg_deep'|'fvg_dip'|'fvg_strong'|'fvg_sbr'|'fvg_50pct'|'fvg_limit'
 SL_MULT      = 6.2      # SL distance dari titik 0 (dalam R unit = FVG height)
-TP_MULT      = 2.0      # TP distance dari titik 0 (dalam R unit)
+TP_MULT      = 18.6     # TP distance dari titik 0 (dalam R unit)
 ENTRY_R      = 8.0      # fvg_rev_limit: level limit entry dari titik 0 (dalam R)
 TIME_FILTER  = 0        # max candles FVG→MSS (0 = disabled)
 TRAIL_STOP   = 0.50     # trailing SL step dalam R — sinkron dengan bott_v4.py
-TRAIL_ACT_R  = 1.5      # trail aktif setelah +TRAIL_ACT_R dari entry (Bybit min ≥ trailingStop)
+TRAIL_ACT_R  = 2.5      # trail aktif setelah +TRAIL_ACT_R dari entry (Bybit min ≥ trailingStop)
 TRAIL_TIMEOUT_C = 864   # close posisi jika trail SL tidak bergerak selama N candle M5
                         # 864 = 3 hari (72 jam × 12 candle/jam)
 TOUCH_VOL_MIN = 0.8     # fvg_strong: touch candle vol min (× avg 20 M5 candle; 0 = no filter)
 MAX_GAP_PCT   = 0.006   # fvg_strong: max gap_size / entry_p — sinkron dengan bott_v4.py
 APPROACH_R    = 2.0     # fvg_limit: place order saat harga dalam 2R dari entry
-REQUIRE_BOS   = True    # True = perlu BOS H1 dulu; False = FVG kuat langsung tanpa BOS
+REQUIRE_BOS   = False   # True = perlu BOS H1 dulu; False = FVG kuat langsung tanpa BOS
 MAX_CONCURRENT = 5      # maks posisi/limit aktif bersamaan lintas semua coin
 
 # ── Partial TP / scale-out (LEVER WIN-RATE yang JUJUR) ───────────────────────
@@ -47,6 +47,18 @@ MAX_CONCURRENT = 5      # maks posisi/limit aktif bersamaan lintas semua coin
 PARTIAL_TP_FRAC = 0.0   # contoh 0.5 = bank 50% qty di partial target
 PARTIAL_TP_R    = 1.0   # jarak partial target dari entry, dalam R (× dist)
 PARTIAL_BE      = True  # True = sisa SL ke breakeven setelah partial kena
+
+# ── SL fraction: kecilkan/perbesar jarak SL (= dist) dari range C1 ──────────
+# 1.0 = SL penuh di c1_low/high (default). 0.5 = SL dipotong 50% (lebih ketat).
+SL_FRAC = 0.5
+
+# ── Slippage: biaya fill market di setiap EXIT (SL/trail), fraksi dari harga ──
+# 0 = tanpa slippage. 0.0005 = 5 bps (5 per 10.000) dari harga per exit.
+SLIPPAGE_PCT = 0.0
+
+# ── Floor dist: kalau dist < MIN_DIST, pakai SL minimum tetap (bukan skip) ──
+# False = skip setup dist kecil (perilaku lama). True = floor ke MIN_DIST_PCT.
+MIN_DIST_FLOOR = True
 
 # ── Fixed SL distance (pip mode) ────────────────────────────────────────────
 # True  = dist pakai nilai fixed per coin di bawah (rata-rata C1 range historis)
@@ -96,7 +108,7 @@ DIST_RANGE_FILTER: dict = {
 # 'Long'  = hanya ambil Long setup
 # 'Short' = hanya ambil Short setup
 # None    = keduanya (tidak difilter)
-USE_DIR_FILTER = True
+USE_DIR_FILTER = False
 DIR_FILTER: dict = {
     # Filter arah — HANYA proven konsisten ≥2 run berbeda, spread WR ≤10%
     'JUPUSDT'      : 'Short',  # Short semua sesi 77-87%, spread=0%, N=148 ✅✅✅
@@ -119,7 +131,7 @@ DIR_FILTER: dict = {
 # Hanya masuk trade pada sesi tertentu per coin.
 # Dari analisis sesi run 2 (DirFilter aktif, 615 trade).
 # None = semua sesi. Asia=00-08h London=08-13h NY=13-24h UTC.
-USE_SESSION_FILTER = True
+USE_SESSION_FILTER = False
 SESSION_FILTER: dict = {
     # Sesi tidak difilter — JUP/AAVE/BONK Short bagus di semua sesi
     '1000BONKUSDT' : None,
@@ -1764,6 +1776,11 @@ def _bt_conc_detect_bos(state: dict, active_slots: set,
         dist = max(c1_h - c1_c, 0.0)
         sl_pending = c1_h
 
+    # ── SL_FRAC: potong/scale jarak SL (= dist) ───────────────────────────
+    if SL_FRAC != 1.0 and dist > 0:
+        dist = dist * SL_FRAC
+        sl_pending = c1_c - dist if stype == 'Long' else c1_c + dist
+
     # ── Fixed pip mode: override dist dengan nilai rata-rata historis ─────
     if fixed_dist > 0:
         dist       = fixed_dist
@@ -1777,10 +1794,15 @@ def _bt_conc_detect_bos(state: dict, active_slots: set,
         if rng and not (rng[0] <= dist_pct <= rng[1]):
             return
     # ─────────────────────────────────────────────────────────────────────
-    d_trail    = dist
-
-    if dist < c1_c * MIN_DIST_PCT:
-        return
+    # ── Dist kecil: floor ke MIN_DIST (SL minimum tetap) atau skip ────────
+    min_d = c1_c * MIN_DIST_PCT
+    if dist < min_d:
+        if MIN_DIST_FLOOR:
+            dist = min_d
+            sl_pending = c1_c - dist if stype == 'Long' else c1_c + dist
+        else:
+            return
+    d_trail = dist
 
     # OCL flip check: key sama + OCL sama → entry dibalik
     done      = state['done_bos']
@@ -1850,13 +1872,39 @@ def _bt_conc_update_trade(trade: dict, h: float, l: float, c: float,
     risk_usd = balance * RISK_PCT
     # fee = 2×taker (open+close) — diambil dari entry time agar tetap saat balance berubah
     fee      = trade.get('fee_usd', 2 * TAKER_FEE * entry * risk_usd / dist if dist > 0 else 0.0)
+    # Slippage: setiap exit (SL/trail/timeout) = market fill, lebih jelek dari level.
+    # Dalam unit R: slip_R = (entry × SLIPPAGE_PCT) / dist → makin kecil dist, makin sakit.
+    if SLIPPAGE_PCT > 0 and dist > 0:
+        fee = fee + (entry * SLIPPAGE_PCT / dist) * risk_usd
+
+    # ── Partial TP / scale-out (opsional, default mati) ──────────────────
+    _pfrac = PARTIAL_TP_FRAC if 0.0 < PARTIAL_TP_FRAC < 1.0 else 0.0
+    pdone  = trade.get('partial_done', False)
+    realiz = trade.get('realized_partial', 0.0)
+    rem    = (1.0 - _pfrac) if (pdone and _pfrac > 0) else 1.0
+
+    def _close(r):
+        pnl = realiz + rem * r * risk_usd - fee
+        return ('tp' if pnl > 0 else 'sl'), pnl
+
+    def _fire_partial():
+        trade['partial_done'] = True
+        trade['realized_partial'] = _pfrac * PARTIAL_TP_R * risk_usd - _pfrac * fee
+        if PARTIAL_BE:
+            if stype == 'Long' and trade['trail_sl'] < entry:
+                trade['trail_sl'] = entry
+            elif stype == 'Short' and trade['trail_sl'] > entry:
+                trade['trail_sl'] = entry
 
     if TRAIL_STOP > 0:
         if stype == 'Long':
             # Cek LOW vs trail_sl LAMA dulu (konservatif: L sebelum H dalam candle)
             if l <= trail_sl:
                 r = (trail_sl - entry) / dist
-                return ('tp' if trail_sl > entry else 'sl'), trail_sl, ts, r * risk_usd - fee
+                out, pnl = _close(r); return out, trail_sl, ts, pnl
+            # Partial TP: bank sebagian di +PARTIAL_TP_R, sisa SL → BE
+            if _pfrac > 0 and not pdone and h >= entry + PARTIAL_TP_R * dist:
+                _fire_partial(); trail_sl = trade['trail_sl']
             # Baru update peak & trail dari HIGH (untuk candle berikutnya)
             if h > peak:
                 peak = h; trade['peak'] = peak
@@ -1866,12 +1914,15 @@ def _bt_conc_update_trade(trade: dict, h: float, l: float, c: float,
                         trail_sl = new_tsl; trade['trail_sl'] = trail_sl
             if h >= tp:
                 r = (tp - entry) / dist
-                return 'tp', tp, ts, r * risk_usd - fee
+                out, pnl = _close(r); return out, tp, ts, pnl
         else:  # Short
             # Cek HIGH vs trail_sl LAMA dulu (konservatif: H sebelum L dalam candle)
             if h >= trail_sl:
                 r = (entry - trail_sl) / dist
-                return ('tp' if trail_sl < entry else 'sl'), trail_sl, ts, r * risk_usd - fee
+                out, pnl = _close(r); return out, trail_sl, ts, pnl
+            # Partial TP
+            if _pfrac > 0 and not pdone and l <= entry - PARTIAL_TP_R * dist:
+                _fire_partial(); trail_sl = trade['trail_sl']
             # Baru update peak & trail dari LOW (untuk candle berikutnya)
             if l < peak:
                 peak = l; trade['peak'] = peak
@@ -1881,18 +1932,22 @@ def _bt_conc_update_trade(trade: dict, h: float, l: float, c: float,
                         trail_sl = new_tsl; trade['trail_sl'] = trail_sl
             if l <= tp:
                 r = (entry - tp) / dist
-                return 'tp', tp, ts, r * risk_usd - fee
+                out, pnl = _close(r); return out, tp, ts, pnl
     else:
         if stype == 'Long':
-            if l <= sl_orig: return 'sl', sl_orig, ts, -risk_usd - fee
+            if l <= sl_orig:
+                out, pnl = _close((sl_orig - entry) / dist); return out, sl_orig, ts, pnl
+            if _pfrac > 0 and not pdone and h >= entry + PARTIAL_TP_R * dist:
+                _fire_partial()
             if h >= tp:
-                r = (tp - entry) / dist
-                return 'tp', tp, ts, r * risk_usd - fee
+                out, pnl = _close((tp - entry) / dist); return out, tp, ts, pnl
         else:
-            if h >= sl_orig: return 'sl', sl_orig, ts, -risk_usd - fee
+            if h >= sl_orig:
+                out, pnl = _close((entry - sl_orig) / dist); return out, sl_orig, ts, pnl
+            if _pfrac > 0 and not pdone and l <= entry - PARTIAL_TP_R * dist:
+                _fire_partial()
             if l <= tp:
-                r = (entry - tp) / dist
-                return 'tp', tp, ts, r * risk_usd - fee
+                out, pnl = _close((entry - tp) / dist); return out, tp, ts, pnl
 
     # Trail timeout
     if TRAIL_STOP > 0:

@@ -33,6 +33,7 @@ _TRAIL_STOP    = float(os.environ.get('TRAIL_STOP',    '0.5'))    # trail 0.5×d
 _TRAIL_ACT_R   = float(os.environ.get('TRAIL_ACT_R',  '2.5'))    # trail aktif setelah +2.5R dari entry
 _TRAIL_TIMEOUT = int(os.environ.get('TRAIL_TIMEOUT',   '864'))    # 3 hari = 72h × 12 candle/jam
 _MIN_DIST_PCT  = float(os.environ.get('MIN_DIST_PCT',  '0.002'))  # min SL distance = 0.2% dari price
+_SL_FRAC       = float(os.environ.get('SL_FRAC',       '0.5'))    # SL dipotong 50% (sinkron live)
 bt.ENTRY_MODE      = _ENTRY_MODE
 bt.SL_MULT         = _SL_MULT
 bt.TP_MULT         = _TP_MULT
@@ -43,6 +44,15 @@ bt.TRAIL_STOP      = _TRAIL_STOP
 bt.TRAIL_ACT_R     = _TRAIL_ACT_R
 bt.TRAIL_TIMEOUT_C = _TRAIL_TIMEOUT
 bt.MIN_DIST_PCT    = _MIN_DIST_PCT
+# ── Config TERKUNCI — sinkron 1:1 dengan bot live (bott_v4.py) ──────────────
+bt.SL_FRAC            = _SL_FRAC                 # SL × 0.5
+bt.MIN_DIST_FLOOR     = os.environ.get('MIN_DIST_FLOOR', '1') == '1'  # dist kecil → SL min 0.2%
+bt.PARTIAL_TP_FRAC    = 0.0                      # TANPA partial — trailing runner penuh
+bt.SLIPPAGE_PCT       = 0.0                      # backtest ideal-fill (slippage = alat analisis terpisah)
+bt.USE_DIR_FILTER     = False                    # DIR filter OFF
+bt.USE_SESSION_FILTER = False                    # session OFF
+bt.USE_DIST_FILTER    = False                    # dist-range filter OFF
+bt.USE_FIXED_DIST     = False                    # fixed-pip OFF
 # bt.FIXED_DIST_PER_COIN tidak di-reset — pakai nilai hardcode di backtest.py
 
 # ── Coin yang sudah lolos backtest fvg_sbr (disimpan, nanti digabung) ─────
@@ -58,10 +68,17 @@ COINS_SAVED = [
 
 # 13 coin: kembalikan SOLUSDT, tanpa BELUSDT
 COINS = [
+    # ── 13 coin terkunci (asli) ──
     '1000BONKUSDT', 'BERAUSDT', 'SHIB1000USDT', 'JUPUSDT',
     'ORCAUSDT', 'XRPUSDT', 'TAOUSDT',
     'SOLUSDT', 'AAVEUSDT', 'GMXUSDT',
     'LTCUSDT', 'ICPUSDT', 'VIRTUALUSDT',
+    # ── 27 coin tambahan (sesi ini) ──
+    'INJUSDT', 'CFXUSDT', 'CRVUSDT', 'APTUSDT', 'UNIUSDT', 'RENDERUSDT',
+    'XVGUSDT', 'ONDOUSDT', 'SANDUSDT', 'SEIUSDT',
+    'DYDXUSDT', 'AXSUSDT', 'IMXUSDT', 'SUIUSDT', 'XAUTUSDT', 'FARTCOINUSDT',
+    'OPUSDT', 'ALGOUSDT', '1000PEPEUSDT', 'ENAUSDT', 'TIAUSDT', 'GALAUSDT',
+    'HBARUSDT', 'STXUSDT', 'APEUSDT', 'FLOWUSDT', 'EIGENUSDT',
 ]
 
 # 2025-01-01 00:00:00 UTC  →  2026-04-30 23:59:59 UTC  (dalam ms)
