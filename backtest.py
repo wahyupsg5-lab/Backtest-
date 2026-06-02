@@ -89,21 +89,21 @@ DIST_RANGE_FILTER: dict = {
 # None    = keduanya (tidak difilter)
 USE_DIR_FILTER = True
 DIR_FILTER: dict = {
-    # Filter arah — proven konsisten di run 3 DAN run 5 (N>=10, selisih WR ≤5%)
-    'BERAUSDT'     : 'Short',  # Short semua sesi 72-80% ✅
-    'SHIB1000USDT' : 'Short',  # Short semua sesi 81-90% ✅
-    'SOLUSDT'      : 'Short',  # Short semua sesi 76-86% ✅
-    'ICPUSDT'      : 'Short',  # Short semua sesi 64-69% ✅
-    'ORCAUSDT'     : 'Short',  # Short semua sesi 62-67% ✅
-    'VIRTUALUSDT'  : 'Short',  # Short London 64%, Asia 56% ✅
-    'TAOUSDT'      : 'Long',   # Long semua sesi 59-61% ✅
-    'GMXUSDT'      : 'Long',   # Long London 71%, Asia 56% ✅
-    'XRPUSDT'      : 'Long',   # Long London 64%, NY 54% ✅
-    'LTCUSDT'      : 'Short',  # Short NY 50% ✅
-    # N kecil atau tidak konsisten — tidak difilter arah
-    '1000BONKUSDT' : None,
-    'JUPUSDT'      : None,
-    'AAVEUSDT'     : None,
+    # Filter arah — HANYA proven konsisten ≥2 run berbeda, spread WR ≤10%
+    'JUPUSDT'      : 'Short',  # Short semua sesi 77-87%, spread=0%, N=148 ✅✅✅
+    'AAVEUSDT'     : 'Short',  # Short semua sesi 78-91%, spread=7%, N=172 ✅✅✅
+    '1000BONKUSDT' : 'Short',  # Short semua sesi 53-61%, spread=0%, N=254 ✅✅
+    # Coin lain: WR berubah drastis tiap run → tidak reliable
+    'BERAUSDT'     : None,
+    'GMXUSDT'      : None,
+    'ICPUSDT'      : None,
+    'ORCAUSDT'     : None,
+    'SHIB1000USDT' : None,
+    'SOLUSDT'      : None,
+    'TAOUSDT'      : None,
+    'VIRTUALUSDT'  : None,
+    'XRPUSDT'      : None,
+    'LTCUSDT'      : None,
 }
 
 # ── Session filter per coin ──────────────────────────────────────────────────
@@ -112,21 +112,20 @@ DIR_FILTER: dict = {
 # None = semua sesi. Asia=00-08h London=08-13h NY=13-24h UTC.
 USE_SESSION_FILTER = True
 SESSION_FILTER: dict = {
-    # Filter sesi — proven konsisten di run 3 & 5
-    # Coin yang bagus di SEMUA sesi → tidak perlu filter sesi (None)
+    # Sesi tidak difilter — JUP/AAVE/BONK Short bagus di semua sesi
     '1000BONKUSDT' : None,
     'AAVEUSDT'     : None,
-    'BERAUSDT'     : None,               # Short semua sesi 72-80%
-    'GMXUSDT'      : None,               # Long semua sesi 54-71%
-    'ICPUSDT'      : None,               # Short semua sesi 64-69%
+    'BERAUSDT'     : None,
+    'GMXUSDT'      : None,
+    'ICPUSDT'      : None,
     'JUPUSDT'      : None,
-    'LTCUSDT'      : ['NY'],             # Short NY 50% (Asia/London lebih rendah) ✅
-    'ORCAUSDT'     : None,               # Short semua sesi 62-67%
-    'SHIB1000USDT' : None,               # Short semua sesi 81-90%
-    'SOLUSDT'      : None,               # Short semua sesi 76-86%
-    'TAOUSDT'      : None,               # Long semua sesi 59-61%
-    'VIRTUALUSDT'  : ['London', 'Asia'], # Short London 64%, Asia 56% ✅
-    'XRPUSDT'      : ['London', 'NY'],   # Long London 64%, NY 54% ✅
+    'LTCUSDT'      : None,
+    'ORCAUSDT'     : None,
+    'SHIB1000USDT' : None,
+    'SOLUSDT'      : None,
+    'TAOUSDT'      : None,
+    'VIRTUALUSDT'  : None,
+    'XRPUSDT'      : None,
 }
 
 
