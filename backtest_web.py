@@ -120,7 +120,7 @@ def _get_df_for(symbol: str) -> pd.DataFrame:
     with _lock:
         df = _coin_data.get(symbol)
     if df is None or df.empty:
-        df = fetch_bybit_m5(symbol)
+        df = get_coin_data(symbol)
         if not df.empty:
             df = df[(df['ts'] >= pd.Timestamp(_START_MS, unit='ms')) &
                     (df['ts'] <= pd.Timestamp(_END_MS, unit='ms'))].reset_index(drop=True)
@@ -148,6 +148,42 @@ def _log_msg(msg: str):
     print(line, flush=True)
     with _lock:
         _log.append(line)
+
+
+# ── Cache data di Railway Volume (hindari download ulang tiap deploy) ───────
+# Railway set RAILWAY_VOLUME_MOUNT_PATH ke path mount volume. Fallback ke lokal.
+_VOL          = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', '').strip()
+CACHE_DIR     = os.path.join(_VOL, 'klines') if _VOL else \
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), 'klines_cache')
+FORCE_REFETCH = os.environ.get('FORCE_REFETCH', '0') == '1'   # set 1 untuk paksa download ulang
+
+
+def _cache_path(symbol: str) -> str:
+    return os.path.join(CACHE_DIR, f"{symbol}_5m.csv")
+
+
+def get_coin_data(symbol: str) -> pd.DataFrame:
+    """Ada di volume → langsung load. Tidak ada → download dari Bybit lalu simpan."""
+    path = _cache_path(symbol)
+    if not FORCE_REFETCH and os.path.exists(path):
+        try:
+            df = pd.read_csv(path)
+            # rekonstruksi ts dari ts_ms (epoch detik) — lebih andal daripada parse string
+            df['ts']    = pd.to_datetime(df['ts_ms'], unit='s')
+            df['ts_ms'] = df['ts_ms'].astype(np.int64)
+            _log_msg(f"   📁 {symbol}: dari cache volume ({len(df):,} candle)")
+            return df
+        except Exception as e:
+            _log_msg(f"   ⚠ cache {symbol} rusak ({e}) — download ulang")
+    df = fetch_bybit_m5(symbol)
+    if len(df) > 0:
+        try:
+            os.makedirs(CACHE_DIR, exist_ok=True)
+            df.to_csv(path, index=False)
+            _log_msg(f"   💾 {symbol}: tersimpan ke volume")
+        except Exception as e:
+            _log_msg(f"   ⚠ gagal simpan cache {symbol}: {e}")
+    return df
 
 
 # ── Bybit M5 fetch ────────────────────────────────────────────────────────
@@ -882,7 +918,7 @@ def _run():
         for symbol in COINS:
             _log_msg(f"  Fetch {symbol}...")
             try:
-                df = fetch_bybit_m5(symbol)
+                df = get_coin_data(symbol)
                 if len(df) < 3000:
                     _log_msg(f"   ⚠ Data {symbol} terlalu sedikit, skip.")
                     continue
@@ -1066,7 +1102,7 @@ def _run():
         _log_msg(f"▶ {symbol}")
         _log_msg("  Fetching M5 data dari Bybit API...")
 
-        df = fetch_bybit_m5(symbol)
+        df = get_coin_data(symbol)
         if df.empty or len(df) < 3000:
             _log_msg(f"  ⚠ Data terlalu sedikit ({len(df)} candle) — skip.")
             results.append({'symbol': symbol, 'status': 'no_data'})
