@@ -60,6 +60,19 @@ SLIPPAGE_PCT = 0.0
 # False = skip setup dist kecil (perilaku lama). True = floor ke MIN_DIST_PCT.
 MIN_DIST_FLOOR = True
 
+# ── Reverse & invert (eksperimen anti-FVG) ──────────────────────────────────
+USE_REVERSE  = True   # True = buka reverse trade 1× saat SL (perilaku live). False = tanpa reverse.
+INVERT_ENTRY = False  # True = ambil arah TERBALIK dari sinyal FVG (FVG Long→Short, dst).
+
+# ── Mode entry eksperimen (timing) ──────────────────────────────────────────
+# 'off'      : entry baseline di c1_close
+# 'offset'   : Test1 — entry STOP di +ENTRY_OFFSET_R searah FVG (konfirmasi momentum)
+# 'wait_rev' : Test2 — tunggu -WAIT_REV_R (level SL), lalu MARKET reverse; batal kalau +WAIT_REV_CANCEL_R duluan
+EXP_ENTRY         = 'wait_rev'
+ENTRY_OFFSET_R    = 0.5
+WAIT_REV_R        = 1.0
+WAIT_REV_CANCEL_R = 3.0
+
 # ── Fixed SL distance (pip mode) ────────────────────────────────────────────
 # True  = dist pakai nilai fixed per coin di bawah (rata-rata C1 range historis)
 # False = dist pakai C1 range FVG aktual (perilaku lama, tidak diubah)
@@ -1768,6 +1781,11 @@ def _bt_conc_detect_bos(state: dict, active_slots: set,
     c1_l = float(chosen['c1_low'])
     c1_h = float(chosen['c1_high'])
 
+    # ── INVERT_ENTRY: ambil arah TERBALIK dari sinyal FVG (anti-FVG) ──────
+    # FVG Long → ambil Short (SL di c1_high); FVG Short → ambil Long (SL di c1_low).
+    if INVERT_ENTRY:
+        stype = 'Short' if stype == 'Long' else 'Long'
+
     # SL di c1_low (Long) / c1_high (Short) — ujung 100% c1
     if stype == 'Long':
         dist = max(c1_c - c1_l, 0.0)
@@ -2136,7 +2154,7 @@ def backtest_concurrent(coins_data: dict,
                     'slot_skip' : False,
                 })
                 rev_count = trade.get('rev_count', 0)
-                if outcome == 'sl' and rev_count < 1:
+                if outcome == 'sl' and rev_count < 1 and USE_REVERSE:
                     # Buka reverse trade 1× — slot tetap aktif
                     rev_stype  = 'Short' if stype == 'Long' else 'Long'
                     rev_entry  = exit_p
@@ -2188,6 +2206,66 @@ def backtest_concurrent(coins_data: dict,
                 state['pending']  = None
                 state['done_bos'] = None   # structure reset → BOS baru bisa detect
                 _diag_month(monthly_diag, ts_ms_ev, 'choch')
+
+            elif EXP_ENTRY in ('offset', 'wait_rev'):
+                ocl  = pending.get('ocl', entry)
+                slot_ok = len(active_slots) < max_concurrent
+                fill = None   # (ent, sl_n, d_eff, tstype)
+                cancel = False
+
+                if not pending.get('exp_touched'):
+                    # GATE 1: harga harus SENTUH c1_close (FVG fill) dulu.
+                    # Tidak fill di candle yang sama (hindari look-ahead intra-candle).
+                    touched = (stype == 'Long' and l_p <= ocl) or \
+                              (stype == 'Short' and h_p >= ocl)
+                    if touched:
+                        pending['exp_touched'] = True
+                elif EXP_ENTRY == 'offset':
+                    # Test1: entry STOP +OFFSET searah FVG; batal kalau SL kena duluan
+                    sllv = pending['sl']
+                    if stype == 'Long':
+                        etgt = ocl + ENTRY_OFFSET_R * dist
+                        if l_p <= sllv:                 cancel = True
+                        elif h_p >= etgt and slot_ok:   fill = (etgt, sllv, etgt - sllv, 'Long')
+                    else:
+                        etgt = ocl - ENTRY_OFFSET_R * dist
+                        if h_p >= sllv:                 cancel = True
+                        elif l_p <= etgt and slot_ok:   fill = (etgt, sllv, sllv - etgt, 'Short')
+                else:  # wait_rev — Test2: tunggu -1R lalu MARKET arah berlawanan
+                    if stype == 'Long':   # FVG long → entry SHORT di -WAIT_REV_R
+                        trig = ocl - WAIT_REV_R * dist
+                        cncl = ocl + WAIT_REV_CANCEL_R * dist
+                        if h_p >= cncl:                 cancel = True
+                        elif l_p <= trig and slot_ok:   fill = (trig, trig + dist, dist, 'Short')
+                    else:                 # FVG short → entry LONG di +WAIT_REV_R
+                        trig = ocl + WAIT_REV_R * dist
+                        cncl = ocl - WAIT_REV_CANCEL_R * dist
+                        if l_p <= cncl:                 cancel = True
+                        elif h_p >= trig and slot_ok:   fill = (trig, trig - dist, dist, 'Long')
+
+                if cancel:
+                    state['pending'] = None
+                    active_slots.discard(sym)
+                    state['done_bos'] = None
+                elif fill is not None:
+                    ent, sl_n, d_eff, tstype = fill
+                    # Slippage entry (market/stop order): perburuk harga fill
+                    if SLIPPAGE_PCT > 0:
+                        ent = ent * (1 + SLIPPAGE_PCT) if tstype == 'Long' else ent * (1 - SLIPPAGE_PCT)
+                        d_eff = abs(ent - sl_n)
+                    if d_eff > 0 and (balance * RISK_PCT / d_eff * ent) >= 5.0:
+                        tp_n = ent + 1000 * d_eff if tstype == 'Long' else ent - 1000 * d_eff
+                        _fee = 2 * TAKER_FEE * ent * (balance * RISK_PCT) / d_eff
+                        state['trade'] = {
+                            'entry': ent, 'sl_orig': sl_n, 'trail_sl': sl_n, 'peak': ent,
+                            'tp': tp_n, 'dist': d_eff, 'd_trail': d_eff, 'stype': tstype,
+                            'entry_ts': ts, 'done_key': pending['bos_key'], 'trail_no_move': 0,
+                            'trail_prev_sl': sl_n, 'orig_ocl': ocl, 'fee_usd': _fee,
+                            'rev_count': 1 if EXP_ENTRY == 'wait_rev' else 0,   # test2 blok reverse
+                        }
+                        active_slots.add(sym)
+                        state['done_bos'] = pending['bos_key']
+                        state['pending']  = None
 
             elif pending['phase'] == 'WAIT_APPROACH':
                 thr = APPROACH_R * dist
