@@ -1871,6 +1871,34 @@ def _bt_conc_detect_bos(state: dict, active_slots: set,
     }
 
 
+def _bt_scan_fvg_newest(h1_completed):
+    """Scan FVG-only strong TERBARU (Long/Short) dari rolling H1 — untuk re-deteksi wait_rev
+    saat pre-touch. Mereplikasi logika fvg_only di _bt_conc_detect_bos. Return (gap, stype)."""
+    if len(h1_completed) < 5:
+        return None, None
+    h1_df = pd.DataFrame(h1_completed[-60:])  # FVG terbaru pasti di window recent → hemat
+    chosen = None; stype = None; best_c3i = -1
+    for s in ['Long', 'Short']:
+        all_gaps = get_internal_gaps(h1_df, s, len(h1_df) - 1)
+        strong   = [g for g in all_gaps
+                    if g.get('c3_vol', 0) > g.get('vol_max10h', 0) > 0
+                    and g.get('c1_close', 0) > 0]
+        for g in reversed(strong):
+            c1_c_g = float(g.get('c1_close', 0)); c1_l_g = float(g.get('c1_low', 0))
+            c1_h_g = float(g.get('c1_high', 0))
+            if c1_c_g <= 0 or c1_h_g <= c1_l_g: continue
+            c1_mid_g = (c1_h_g + c1_l_g) / 2.0
+            if s == 'Long'  and c1_c_g <= c1_mid_g: continue
+            if s == 'Short' and c1_c_g >= c1_mid_g: continue
+            gap_sz = float(g['top']) - float(g['bottom'])
+            if c1_c_g > 0 and MAX_GAP_PCT > 0 and gap_sz / c1_c_g > MAX_GAP_PCT: continue
+            c3i = g.get('c3_idx', 0)
+            if c3i > best_c3i:
+                best_c3i = c3i; chosen = g; stype = s
+            break
+    return chosen, stype
+
+
 def _bt_conc_update_trade(trade: dict, h: float, l: float, c: float,
                            ts, balance: float):
     """
@@ -2341,8 +2369,30 @@ def backtest_concurrent(coins_data: dict,
                 state['h1_m5_buf'] = []
                 if len(state['h1_completed']) > H1_WIN:
                     state['h1_completed'] = state['h1_completed'][-H1_WIN:]
-
-        # ── 3. Idle: akumulasi H1 + BOS detection ────────────────────────
+                # ── wait_rev: re-deteksi FVG TERBARU tiap H1 close, selama belum sentuh c1_close ──
+                _pend = state['pending']
+                if EXP_ENTRY == 'wait_rev' and _pend is not None and not _pend.get('exp_touched'):
+                    _pend['rdc'] = _pend.get('rdc', 0) + 1
+                    if _pend["rdc"] % 12 == 0:   # throttle: scan tiap 12 H1 close (hemat)
+                        n_ch, n_st = _bt_scan_fvg_newest(state['h1_completed'])
+                        if n_ch and n_st:
+                            n_ocl = float(n_ch['c1_close']); o_ocl = _pend.get('ocl', 0)
+                            if n_ocl > 0 and (n_st != _pend['stype'] or
+                                              abs(n_ocl - o_ocl) / max(n_ocl, 1e-9) > 0.001):
+                                c1l = float(n_ch['c1_low']); c1h = float(n_ch['c1_high'])
+                                d_raw = (n_ocl - c1l) if n_st == 'Long' else (c1h - n_ocl)
+                                d_n = max(d_raw, 0.0) * SL_FRAC
+                                min_dn = n_ocl * MIN_DIST_PCT
+                                if d_n < min_dn:
+                                    d_n = min_dn if MIN_DIST_FLOOR else 0.0
+                                if d_n > 0:
+                                    state['pending'] = {
+                                        'bos_key': ('fvg_only', round(n_ocl, 8)),
+                                        'phase': 'WAIT_APPROACH', 'entry': n_ocl, 'ocl': n_ocl,
+                                        'sl': (n_ocl - d_n if n_st == 'Long' else n_ocl + d_n),
+                                        'dist': d_n, 'd_trail': d_n, 'stype': n_st,
+                                        'choch_level': None, 'swing_val': float(n_ocl),
+                                    }
         else:
             state['h1_m5_buf'].append({
                 'ts': ts, 'ts_ms': int(ts_ms_ev),
