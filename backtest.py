@@ -2259,17 +2259,30 @@ def backtest_concurrent(coins_data: dict,
                         etgt = ocl - ENTRY_OFFSET_R * dist
                         if h_p >= sllv:                 cancel = True
                         elif l_p <= etgt and slot_ok:   fill = (etgt, sllv, sllv - etgt, 'Short')
-                else:  # wait_rev — Test2: tunggu -1R lalu MARKET arah berlawanan
+                else:  # wait_rev — Test2: tunggu ∓WAIT_REV_R lalu MARKET arah berlawanan
                     if stype == 'Long':   # FVG long → entry SHORT di -WAIT_REV_R
                         trig = ocl - WAIT_REV_R * dist
-                        cncl = ocl + WAIT_REV_CANCEL_R * dist
-                        if h_p >= cncl:                 cancel = True
-                        elif l_p <= trig and slot_ok:   fill = (trig, trig + dist, dist, 'Short')
+                        trig_hit  = l_p <= trig
+                        fvg_works = h_p >= ocl + WAIT_REV_CANCEL_R * dist
+                        tstype, sl_dir = 'Short', +1
                     else:                 # FVG short → entry LONG di +WAIT_REV_R
                         trig = ocl + WAIT_REV_R * dist
-                        cncl = ocl - WAIT_REV_CANCEL_R * dist
-                        if l_p <= cncl:                 cancel = True
-                        elif h_p >= trig and slot_ok:   fill = (trig, trig - dist, dist, 'Long')
+                        trig_hit  = h_p >= trig
+                        fvg_works = l_p <= ocl - WAIT_REV_CANCEL_R * dist
+                        tstype, sl_dir = 'Long', -1
+                    if pending.get('exp_trig'):
+                        # sudah trigger, nunggu slot → batal kalau ±WAIT_REV_CANCEL_R dari trig (kedua arah)
+                        if h_p >= trig + WAIT_REV_CANCEL_R * dist or l_p <= trig - WAIT_REV_CANCEL_R * dist:
+                            cancel = True
+                        elif slot_ok:
+                            fill = (trig, trig + sl_dir * dist, dist, tstype)
+                    else:
+                        if fvg_works:
+                            cancel = True
+                        elif trig_hit:
+                            pending['exp_trig'] = True   # trigger pertama kali
+                            if slot_ok:
+                                fill = (trig, trig + sl_dir * dist, dist, tstype)
 
                 if cancel:
                     state['pending'] = None
