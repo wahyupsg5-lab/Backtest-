@@ -74,8 +74,8 @@ COINS = [
     'CFXUSDT', 'APTUSDT', 'UNIUSDT', 'ONDOUSDT', 'SEIUSDT',
     'DYDXUSDT', 'SUIUSDT', 'XAUTUSDT', 'ALGOUSDT', 'HBARUSDT',
     'EIGENUSDT',
-    # ── 18 coin BELUM pernah diuji wait_rev (dulu dibuang di sistem baseline) ──
-    'SHIB1000USDT', 'XRPUSDT', 'SOLUSDT', 'INJUSDT', 'CRVUSDT', 'RENDERUSDT',
+    # ── 17 coin baru lolos uji wait_rev (−INJ yang terlemah) ──
+    'SHIB1000USDT', 'XRPUSDT', 'SOLUSDT', 'CRVUSDT', 'RENDERUSDT',
     'XVGUSDT', 'SANDUSDT', 'AXSUSDT', 'IMXUSDT', 'FARTCOINUSDT', 'OPUSDT',
     '1000PEPEUSDT', 'ENAUSDT', 'TIAUSDT', 'GALAUSDT', 'APEUSDT', 'FLOWUSDT',
 ]
