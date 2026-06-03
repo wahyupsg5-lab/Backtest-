@@ -68,12 +68,12 @@ COINS_SAVED = [
 
 # 13 coin: kembalikan SOLUSDT, tanpa BELUSDT
 COINS = [
-    # ── 22 coin: Trade ≥ 50 (hasil saring backtest 40-coin) ──
+    # ── 20 coin (Trade ≥ 50, minus STX & AAVE) ──
     '1000BONKUSDT', 'BERAUSDT', 'JUPUSDT', 'ORCAUSDT', 'TAOUSDT',
-    'AAVEUSDT', 'GMXUSDT', 'LTCUSDT', 'ICPUSDT', 'VIRTUALUSDT',
+    'GMXUSDT', 'LTCUSDT', 'ICPUSDT', 'VIRTUALUSDT',
     'CFXUSDT', 'APTUSDT', 'UNIUSDT', 'ONDOUSDT', 'SEIUSDT',
     'DYDXUSDT', 'SUIUSDT', 'XAUTUSDT', 'ALGOUSDT', 'HBARUSDT',
-    'STXUSDT', 'EIGENUSDT',
+    'EIGENUSDT',
 ]
 
 # 2025-01-01 00:00:00 UTC  →  2026-04-30 23:59:59 UTC  (dalam ms)
