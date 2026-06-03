@@ -68,12 +68,16 @@ COINS_SAVED = [
 
 # 13 coin: kembalikan SOLUSDT, tanpa BELUSDT
 COINS = [
-    # ── 19 coin (−BERA −TAO −STX, +AAVE) ──
+    # ── 19 coin sudah tervalidasi wait_rev ──
     '1000BONKUSDT', 'JUPUSDT', 'ORCAUSDT', 'AAVEUSDT',
     'GMXUSDT', 'LTCUSDT', 'ICPUSDT', 'VIRTUALUSDT',
     'CFXUSDT', 'APTUSDT', 'UNIUSDT', 'ONDOUSDT', 'SEIUSDT',
     'DYDXUSDT', 'SUIUSDT', 'XAUTUSDT', 'ALGOUSDT', 'HBARUSDT',
     'EIGENUSDT',
+    # ── 18 coin BELUM pernah diuji wait_rev (dulu dibuang di sistem baseline) ──
+    'SHIB1000USDT', 'XRPUSDT', 'SOLUSDT', 'INJUSDT', 'CRVUSDT', 'RENDERUSDT',
+    'XVGUSDT', 'SANDUSDT', 'AXSUSDT', 'IMXUSDT', 'FARTCOINUSDT', 'OPUSDT',
+    '1000PEPEUSDT', 'ENAUSDT', 'TIAUSDT', 'GALAUSDT', 'APEUSDT', 'FLOWUSDT',
 ]
 
 # 2025-01-01 00:00:00 UTC  →  2026-04-30 23:59:59 UTC  (dalam ms)
