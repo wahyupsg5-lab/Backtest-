@@ -1,7 +1,7 @@
 # SMC Trading Bot — Claude Code Instructions
 
 Ini adalah project bot trading otomatis berbasis **Smart Money Concepts (SMC)** untuk Bybit Futures.  
-Kamu adalah asisten yang membantu mengembangkan, debugging, dan backtest bot ini.
+Kamu adalah asisten yang membantu mengembangkan, debugging, dan backtest bot ini. p
 
 ---
 
