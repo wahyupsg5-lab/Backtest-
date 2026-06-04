@@ -70,12 +70,12 @@ COINS_SAVED = [
 COINS = [
     # ── 19 coin sudah tervalidasi wait_rev ──
     '1000BONKUSDT', 'JUPUSDT', 'ORCAUSDT', 'AAVEUSDT',
-     'LTCUSDT', 'ICPUSDT', 'VIRTUALUSDT',
+    'GMXUSDT', 'LTCUSDT', 'ICPUSDT', 'VIRTUALUSDT',
     'CFXUSDT', 'APTUSDT', 'UNIUSDT', 'ONDOUSDT', 'SEIUSDT',
     'DYDXUSDT', 'SUIUSDT', 'XAUTUSDT', 'ALGOUSDT', 'HBARUSDT',
     'EIGENUSDT',
     # ── 17 coin baru lolos uji wait_rev (−INJ yang terlemah) ──
-    'SHIB1000USDT', 'SOLUSDT', 'CRVUSDT', 'RENDERUSDT',
+    'SHIB1000USDT', 'XRPUSDT', 'SOLUSDT', 'CRVUSDT', 'RENDERUSDT',
     'XVGUSDT', 'SANDUSDT', 'AXSUSDT', 'IMXUSDT', 'FARTCOINUSDT', 'OPUSDT',
     '1000PEPEUSDT', 'ENAUSDT', 'TIAUSDT', 'GALAUSDT', 'APEUSDT', 'FLOWUSDT',
 ]
@@ -163,17 +163,34 @@ FORCE_REFETCH = os.environ.get('FORCE_REFETCH', '0') == '1'   # set 1 untuk paks
 
 
 def _cache_path(symbol: str) -> str:
-    return os.path.join(CACHE_DIR, f"{symbol}_5m.csv")
+    return os.path.join(CACHE_DIR, f"{symbol}_5m.csv.gz")
+
+
+def clean_cache(coins) -> None:
+    """Hapus file cache usang (format lama .csv) & orphan (coin tak lagi di daftar)."""
+    if not os.path.isdir(CACHE_DIR):
+        return
+    keep = {f"{c}_5m.csv.gz" for c in coins}
+    removed = 0
+    for fn in os.listdir(CACHE_DIR):
+        if not (fn.endswith('_5m.csv') or fn.endswith('_5m.csv.gz')):
+            continue
+        if fn not in keep:                       # .csv lama ATAU coin yang sudah dibuang
+            try:
+                os.remove(os.path.join(CACHE_DIR, fn)); removed += 1
+            except Exception:
+                pass
+    if removed:
+        _log_msg(f"🧹 Cache: hapus {removed} file usang/orphan dari volume")
 
 
 def get_coin_data(symbol: str) -> pd.DataFrame:
-    """Ada di volume → langsung load. Tidak ada → download dari Bybit lalu simpan."""
+    """Ada di volume → langsung load. Tidak ada → download dari Bybit lalu simpan (gzip)."""
     path = _cache_path(symbol)
     if not FORCE_REFETCH and os.path.exists(path):
         try:
-            df = pd.read_csv(path)
-            # rekonstruksi ts dari ts_ms (epoch detik) — lebih andal daripada parse string
-            df['ts']    = pd.to_datetime(df['ts_ms'], unit='s')
+            df = pd.read_csv(path, compression='gzip')
+            df['ts']    = pd.to_datetime(df['ts_ms'], unit='s')   # rekonstruksi ts
             df['ts_ms'] = df['ts_ms'].astype(np.int64)
             _log_msg(f"   📁 {symbol}: dari cache volume ({len(df):,} candle)")
             return df
@@ -183,8 +200,9 @@ def get_coin_data(symbol: str) -> pd.DataFrame:
     if len(df) > 0:
         try:
             os.makedirs(CACHE_DIR, exist_ok=True)
-            df.to_csv(path, index=False)
-            _log_msg(f"   💾 {symbol}: tersimpan ke volume")
+            # simpan tanpa kolom 'ts' (redundan dgn ts_ms) + gzip → ~3x lebih kecil
+            df.drop(columns=['ts'], errors='ignore').to_csv(path, index=False, compression='gzip')
+            _log_msg(f"   💾 {symbol}: tersimpan ke volume (gzip)")
         except Exception as e:
             _log_msg(f"   ⚠ gagal simpan cache {symbol}: {e}")
     return df
@@ -918,6 +936,7 @@ def _run():
     # ── Concurrent mode (fvg_limit) ──────────────────────────────────────
     if _ENTRY_MODE == 'fvg_limit':
         _log_msg("📡 Fetching data semua coin...")
+        clean_cache(COINS)        # buang file cache orphan/usang dari volume dulu
         coins_data = {}
         for symbol in COINS:
             _log_msg(f"  Fetch {symbol}...")
