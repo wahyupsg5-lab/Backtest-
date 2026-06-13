@@ -12,6 +12,7 @@ import pandas as pd
 import numpy as np
 import os, re
 from datetime import datetime
+import smc_logic_v5 as v5   # logika deteksi v9.5 (sumber tunggal, sama dgn live bott_v5_smc.py)
 
 # ============================================================
 # CONFIG
@@ -37,6 +38,9 @@ TOUCH_VOL_MIN = 0.8     # fvg_strong: touch candle vol min (× avg 20 M5 candle;
 MAX_GAP_PCT   = 0.006   # fvg_strong: max gap_size / entry_p — sinkron dengan bott_v4.py
 APPROACH_R    = 2.0     # fvg_limit: place order saat harga dalam 2R dari entry
 REQUIRE_BOS   = False   # True = perlu BOS H1 dulu; False = FVG kuat langsung tanpa BOS
+USE_V5_LOGIC  = True    # True = pakai PIPELINE v9.5 (smc_logic_v5): BOS 5-5 + apply_latest_leg
+                        #        (fine-fractal extension/rebreak) + FVG warna-sama zona-dinamis fresh-C1
+                        #        + gate FVG<->IDM + IDM swing 1-1..4-4. Mengabaikan REQUIRE_BOS/INVERT/volume-FVG.
 MAX_CONCURRENT = 5      # maks posisi/limit aktif bersamaan lintas semua coin
 
 # ── Partial TP / scale-out (LEVER WIN-RATE yang JUJUR) ───────────────────────
@@ -1662,14 +1666,65 @@ def _diag_month(monthly_diag: dict, ts_s, key: str, n: int = 1) -> None:
     monthly_diag[k][key] += n
 
 
+def _v5_detect(state: dict, active_slots: set, ts_ms: int = 0, monthly_diag: dict = None) -> None:
+    """Deteksi setup pakai PIPELINE v9.5 ASLI (smc_logic_v5.build_setup_from_bos).
+    Mengisi state['pending'] dengan format yang sama (entry/sl/dist/stype/choch).
+    entry = ujung wick C2; SL = 10% range BOS; gate FVG+IDM sudah di dalam build_setup_from_bos."""
+    h1c = state['h1_completed']
+    if len(h1c) < 30:
+        return
+    h1_df = pd.DataFrame(h1c)
+    # v9.5 logic mengharapkan kolom 'ts' = epoch ms NUMERIK (utk windowing IDM). Engine ini
+    # menyimpan 'ts' sbg Timestamp & 'ts_ms' sbg int64 -> pakai ts_ms sebagai 'ts'.
+    if 'ts_ms' in h1_df.columns:
+        h1_df = h1_df.assign(ts=h1_df['ts_ms'].astype('int64'))
+    sh, sl = v5.find_last_swing_bos(h1_df, n=v5.SWING_BARS)
+    if not sh or not sl:
+        return
+    closed = h1_df.iloc[-2]
+    best = None
+    for d in ("Long", "Short"):
+        s, _ = v5.build_setup_from_bos(state['sym'], h1_df, sh, sl, closed, verbose=False, force_dir=d)
+        if s and (best is None or s['bos_idx'] > best['bos_idx']):   # struktur paling terbaru
+            best = s
+    if best is None:
+        return
+    stype = best['type']; swing_val = float(best['swing_val'])
+    bos_key = (stype, round(swing_val, 8))
+    existing = state['pending']
+    if existing and existing.get('bos_key') == bos_key:
+        return
+    if existing and existing.get('phase') == 'WAIT_FILL':
+        active_slots.discard(state['sym'])
+    if monthly_diag is not None and ts_ms:
+        _diag_month(monthly_diag, ts_ms, 'setup')
+    dist = abs(float(best['entry']) - float(best['sl']))
+    state['pending'] = {
+        'bos_key'     : bos_key,
+        'phase'       : 'WAIT_APPROACH',
+        'entry'       : float(best['entry']),    # limit = ujung wick C2 (v9.5)
+        'ocl'         : float(best['entry']),
+        'sl'          : float(best['sl']),       # SL = 10% range BOS
+        'dist'        : dist,
+        'd_trail'     : dist,
+        'stype'       : stype,
+        'choch_level' : best.get('choch_level'),
+        'swing_val'   : swing_val,
+    }
+
+
 def _bt_conc_detect_bos(state: dict, active_slots: set,
                          ts_ms: int = 0, monthly_diag: dict = None,
                          fixed_dist: float = 0.0) -> None:
     """
     Deteksi setup dari rolling H1.
-    REQUIRE_BOS=True : BOS H1 → FVG kuat (mode default/live).
-    REQUIRE_BOS=False: FVG kuat saja tanpa BOS (mode eksperimen backtest).
+    USE_V5_LOGIC=True : pipeline v9.5 (BOS 5-5 + latest-leg + gate FVG/IDM) — sama dgn live.
+    REQUIRE_BOS=True  : BOS H1 → FVG kuat (mode lama v4).
+    REQUIRE_BOS=False : FVG kuat saja tanpa BOS (eksperimen).
     """
+    if USE_V5_LOGIC:
+        _v5_detect(state, active_slots, ts_ms, monthly_diag)
+        return
     h1_completed = state['h1_completed']
     if len(h1_completed) < 20:
         return
